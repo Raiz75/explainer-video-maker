@@ -1,0 +1,17 @@
+__pycache__/
+*.pyc
+
+# Large model files — download separately (see README)
+kokoro-v1.0.onnx
+voices-v1.0.bin
+
+# Output and user media
+output/*
+images/*
+!output/.gitkeep
+!images/.gitkeep
+
+# Temp files from MoviePy / pydub
+*.wav
+*.mp3
+*.mp4
