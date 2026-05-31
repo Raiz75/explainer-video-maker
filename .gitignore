@@ -7,9 +7,8 @@ voices-v1.0.bin
 
 # Output and user media
 output/*
-images/*
+uploaded-content/*
 !output/.gitkeep
-!images/.gitkeep
 
 # Temp files from MoviePy / pydub
 *.wav
