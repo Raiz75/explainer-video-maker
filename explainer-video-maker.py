@@ -27,87 +27,27 @@ FG_GREEN = "#7fcc7f"
 FG_MUTED = "#888888"
 
 
-MASTER_PROMPT = """\
-Generate a viral TikTok educational visual package for the given topic.
-TOPIC: [INSERT TOPIC HERE]
-GOAL:
-Create:
-1. A JSON array of script segments (for direct use in the app)
-2. A flexible number of standalone image prompts (plain text, for copy-pasting to an image AI)
-Each segment maps one chunk of narration to one image number.
-Each image must fully explain one idea from the script and must be usable independently without any shared context.
----
-OUTPUT FORMAT (STRICT):
+# ── Master Prompts (loaded from files) ────────────────────────────────────────
+def _load_prompt(filename):
+    path = os.path.join(SCRIPT_DIR, filename)
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return f.read()
+    except FileNotFoundError:
+        return f"[ERROR: {filename} not found at {path}]"
 
-Script Segments JSON:
-Output a raw JSON array. No markdown fences, no explanation before or after — just the array.
-Each object must have exactly these three fields:
-  "segment" — integer, starting from 1
-  "text"    — the narration chunk for that segment, optimized for TTS
-  "image"   — integer matching the Image Prompt number below
-
-Example structure (do not copy this content, only the shape):
-[
-  {"segment": 1, "text": "Hook line here.", "image": 1},
-  {"segment": 2, "text": "Explanation here.", "image": 2},
-  {"segment": 3, "text": "Payoff here.", "image": 3}
-]
-
-Rules for splitting segments:
-- Each segment must correspond to exactly ONE image
-- Split at natural breath/idea boundaries — not mid-sentence
-- Every idea in the script must be covered — no leftover narration
-- Add as many segments as needed (NO LIMIT)
-
----
-Image Prompts:
-Image 1:
-[Standalone visual prompt fully explaining one key idea from the script]
-Image 2:
-[Standalone visual prompt fully explaining another key idea]
-Image 3:
-[Standalone visual prompt fully explaining another key idea]
-Image 4:
-[Add more images as needed until ALL ideas in the script are visually covered]
----
-CRITICAL IMAGE RULE (MOST IMPORTANT):
-Each image prompt must be FULLY SELF-CONTAINED.
-That means EVERY image must include BOTH:
-1. The visual concept (what is happening)
-2. The full drawing + style instruction (so it works independently)
-You MUST repeat the STYLE BLOCK inside EVERY IMAGE PROMPT.
----
-STYLE BLOCK (MUST BE APPENDED TO EVERY IMAGE):
-Draw the subject as a rough artist sketch using loose, confident pencil lines. Keep visible construction lines, exploratory strokes, and unfinished details. The artwork should feel like an artist's first draft rather than a finished illustration. Use simple graphite-style linework, natural hand-drawn imperfections, overlapping sketch marks, and light rough shading where needed. Avoid polished rendering, vector art, digital painting, realism, or clean cartoon outlines. Maintain an authentic concept-sketch appearance with expressive line variation and organic strokes. Pure white background, isolated subject, no notebook, no paper texture, no shadows, no text, no borders, no additional objects.
-AND ALSO INCLUDE THIS VISUAL CONSTRAINT:
-Strict monochrome graphite pencil sketch ONLY. No color, no gradients, no lighting effects, no 3D rendering, no ink wash, no realism.
----
-IMAGE STRUCTURE RULE (VERY IMPORTANT):
-Each image must follow this format:
-Image X:
-[Core idea / scene description]
-STYLE:
-[PASTE FULL STYLE BLOCK HERE]
----
-VIRAL CONTENT RULES:
-- Script must be continuous and optimized for TTS
-- Must include hook → explanation → payoff structure
-- Each image must represent ONE distinct idea from the script
-- Add as many segments/images as needed (NO LIMIT)
-- No overlapping meaning between images
-- Prioritize clarity, speed of understanding, and rewatchability
-- The number of JSON segments MUST equal the number of Image Prompts\
-"""
+MASTER_PROMPT1 = _load_prompt("master_prompt1.txt")
+MASTER_PROMPT2 = _load_prompt("master_prompt2.txt")
 
 
 HINT_JSON = (
-    "JSON format — one entry per image:\n"
+    "JSON format — each segment maps to MULTIPLE images:\n"
     '[\n'
-    '  {"segment": 1, "text": "Hook line here.", "image": 1},\n'
-    '  {"segment": 2, "text": "Explanation here.", "image": 2},\n'
-    '  {"segment": 3, "text": "Payoff here.", "image": 3}\n'
+    '  {"segment": 1, "text": "Hook narration here.", "images": [1, 2, 3]},\n'
+    '  {"segment": 2, "text": "Explanation narration here.", "images": [4, 5, 6, 7]},\n'
+    '  {"segment": 3, "text": "Next idea here.", "images": [8, 9]}\n'
     ']\n'
-    "Each segment maps one script chunk to one image number."
+    "Image 1 = thumbnail. Each segment needs 2–5 images. Numbers must be sequential, never repeated."
 )
 
 
@@ -115,8 +55,8 @@ HINT_JSON = (
 class ExplainerApp(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("Explainer Video Maker")
-        self.geometry("720x900")
+        self.title("Long-Form Explainer Video Maker")
+        self.geometry("720x960")
         self.resizable(False, False)
         self.configure(bg=BG)
         self._running = False
@@ -127,23 +67,36 @@ class ExplainerApp(tk.Tk):
         import tkinter.ttk as ttk
 
         # ── Title ──────────────────────────────────────────────────────────────
-        tk.Label(self, text="EXPLAINER VIDEO MAKER",
+        tk.Label(self, text="LONG-FORM EXPLAINER VIDEO MAKER",
                  bg=BG, fg=ACCENT,
                  font=("Consolas", 15, "bold")).pack(pady=(18, 2))
-        tk.Label(self, text="AI Script  •  Kokoro TTS  •  MP4 output  •  Local",
+        tk.Label(self, text="AI Script  •  Equal Segments  •  Kokoro TTS  •  YouTube MP4  •  Local",
                  bg=BG, fg=FG_MUTED,
                  font=("Consolas", 9)).pack(pady=(0, 12))
 
-        # ── Copy Master Prompt ─────────────────────────────────────────────────
-        self._copy_btn = tk.Button(
-            self, text="📋  COPY MASTER PROMPT",
+        # ── Copy Master Prompts ────────────────────────────────────────────────
+        btn_row = tk.Frame(self, bg=BG)
+        btn_row.pack(fill="x", padx=24, pady=(0, 12))
+
+        self._copy_btn1 = tk.Button(
+            btn_row, text="📋  COPY PROMPT 1  (Script)",
             bg=BORDER, fg="#a8d8ea",
             font=("Consolas", 10, "bold"),
             relief="flat", cursor="hand2",
             activebackground="#1a472a",
             activeforeground=FG_GREEN,
-            command=self._copy_prompt)
-        self._copy_btn.pack(fill="x", padx=24, pady=(0, 12), ipady=7)
+            command=self._copy_prompt1)
+        self._copy_btn1.pack(side="left", fill="x", expand=True, ipady=7, padx=(0, 6))
+
+        self._copy_btn2 = tk.Button(
+            btn_row, text="📋  COPY PROMPT 2  (Images)",
+            bg=BORDER, fg="#a8d8ea",
+            font=("Consolas", 10, "bold"),
+            relief="flat", cursor="hand2",
+            activebackground="#1a472a",
+            activeforeground=FG_GREEN,
+            command=self._copy_prompt2)
+        self._copy_btn2.pack(side="left", fill="x", expand=True, ipady=7)
 
         # ── Script JSON input ──────────────────────────────────────────────────
         lf_script = tk.LabelFrame(self, text=" Script Segments (JSON) ",
@@ -165,7 +118,7 @@ class ExplainerApp(tk.Tk):
                  justify="left").pack(anchor="w", padx=12, pady=(0, 8))
 
         # ── Images panel ───────────────────────────────────────────────────────
-        lf_images = tk.LabelFrame(self, text=" Images (in sequence) ",
+        lf_images = tk.LabelFrame(self, text=" Images — Slot 1 = THUMBNAIL (opening frame) ",
                                   bg=SURFACE, fg="#aaa",
                                   bd=1, relief="flat",
                                   font=("Consolas", 9))
@@ -197,12 +150,12 @@ class ExplainerApp(tk.Tk):
                   activeforeground=FG_GREEN,
                   command=self._add_image_slot).pack(side="left", padx=(0, 8), ipady=4, ipadx=8)
         tk.Label(add_row,
-                 text="Slots are ordered — Image 1 maps to segment image:1",
+                 text="Slot 01 = THUMBNAIL. Add one slot per image beat (expect 30–80 total).",
                  bg=SURFACE, fg=FG_MUTED,
                  font=("Consolas", 7)).pack(side="left")
 
-        # Seed 3 slots by default
-        for _ in range(3):
+        # Seed 5 slots by default (thumbnail + 4 content slots)
+        for _ in range(5):
             self._add_image_slot()
 
 
@@ -264,13 +217,16 @@ class ExplainerApp(tk.Tk):
     def _add_image_slot(self):
         idx = len(self._image_slots) + 1
         slot = {"path": None}
+        is_thumbnail = (idx == 1)
 
         row = tk.Frame(self._img_inner, bg=SURFACE)
         row.pack(fill="x", padx=4, pady=3)
 
-        num_lbl = tk.Label(row, text=f"[{idx:02d}]",
-                           bg=SURFACE, fg=FG_MUTED,
-                           font=("Consolas", 9, "bold"), width=5)
+        label_text = f"[{idx:02d}]" + (" THUMB" if is_thumbnail else "      ")
+        label_fg   = ACCENT if is_thumbnail else FG_MUTED
+        num_lbl = tk.Label(row, text=label_text,
+                           bg=SURFACE, fg=label_fg,
+                           font=("Consolas", 9, "bold"), width=10)
         num_lbl.pack(side="left")
 
         path_lbl = tk.Label(row, text="— no image selected —",
@@ -311,16 +267,26 @@ class ExplainerApp(tk.Tk):
 
     def _renumber_slots(self):
         for i, slot in enumerate(self._image_slots, 1):
-            slot["num_lbl"].config(text=f"[{i:02d}]")
+            is_thumb   = (i == 1)
+            label_text = f"[{i:02d}]" + (" THUMB" if is_thumb else "      ")
+            label_fg   = ACCENT if is_thumb else FG_MUTED
+            slot["num_lbl"].config(text=label_text, fg=label_fg)
 
 
-    # ── Copy prompt ────────────────────────────────────────────────────────────
-    def _copy_prompt(self):
+    # ── Copy prompts ───────────────────────────────────────────────────────────
+    def _copy_prompt1(self):
         self.clipboard_clear()
-        self.clipboard_append(MASTER_PROMPT)
-        self._copy_btn.config(bg="#1a472a", fg=FG_GREEN, text="✅  COPIED!")
-        self.after(2000, lambda: self._copy_btn.config(
-            bg=BORDER, fg="#a8d8ea", text="📋  COPY MASTER PROMPT"))
+        self.clipboard_append(MASTER_PROMPT1)
+        self._copy_btn1.config(bg="#1a472a", fg=FG_GREEN, text="✅  COPIED! (Prompt 1)")
+        self.after(2000, lambda: self._copy_btn1.config(
+            bg=BORDER, fg="#a8d8ea", text="📋  COPY PROMPT 1  (Script)"))
+
+    def _copy_prompt2(self):
+        self.clipboard_clear()
+        self.clipboard_append(MASTER_PROMPT2)
+        self._copy_btn2.config(bg="#1a472a", fg=FG_GREEN, text="✅  COPIED! (Prompt 2)")
+        self.after(2000, lambda: self._copy_btn2.config(
+            bg=BORDER, fg="#a8d8ea", text="📋  COPY PROMPT 2  (Images)"))
 
     # ── Log helpers ────────────────────────────────────────────────────────────
     def _log(self, msg):
@@ -355,13 +321,37 @@ class ExplainerApp(tk.Tk):
             if not isinstance(segments, list) or not segments:
                 raise ValueError("Must be a non-empty JSON array.")
             for seg in segments:
-                if "text" not in seg or "image" not in seg:
-                    raise ValueError('Each segment needs "text" and "image" keys.')
+                if "text" not in seg:
+                    raise ValueError('Each segment needs a "text" key.')
+                if "images" not in seg:
+                    raise ValueError(
+                        'Each segment needs an "images" key (list of image numbers).\n'
+                        'Old "image" (single int) is no longer supported.')
+                if not isinstance(seg["images"], list) or len(seg["images"]) == 0:
+                    raise ValueError(
+                        f'Segment {seg.get("segment","?")} "images" must be a non-empty list.')
+                for n in seg["images"]:
+                    if not isinstance(n, int) or n < 1:
+                        raise ValueError(
+                            f'Segment {seg.get("segment","?")}: image number {n!r} must be a positive integer.')
         except Exception as e:
             messagebox.showerror("Invalid JSON", f"Script JSON error:\n{e}")
             return
 
-        # Validate image slots
+        # Collect ALL image numbers referenced across all segments
+        all_image_nums = []
+        seen = set()
+        for seg in segments:
+            for n in seg["images"]:
+                if n in seen:
+                    messagebox.showerror("Duplicate Image Number",
+                        f"Image number {n} appears in more than one segment.\n"
+                        f"Every image must belong to exactly one segment.")
+                    return
+                seen.add(n)
+                all_image_nums.append(n)
+
+        # Validate image slots — every slot must have a file
         image_map = {}
         for i, slot in enumerate(self._image_slots, 1):
             if slot["path"] is None:
@@ -370,17 +360,22 @@ class ExplainerApp(tk.Tk):
                 return
             image_map[i] = slot["path"]
 
-        # Check all referenced image numbers exist
-        missing = set()
-        for seg in segments:
-            n = seg["image"]
-            if n not in image_map:
-                missing.add(n)
+        # Check all referenced image numbers have a corresponding slot
+        missing = sorted(set(all_image_nums) - set(image_map.keys()))
         if missing:
             messagebox.showerror("Missing Image Slots",
-                f"Segments reference image(s) {sorted(missing)} but those slots don't exist.\n"
+                f"Segments reference image(s) {missing} but those slots don't exist.\n"
                 f"You have {len(self._image_slots)} slot(s).")
             return
+
+        # Warn about unused slots (not an error)
+        unused = sorted(set(image_map.keys()) - set(all_image_nums))
+        if unused:
+            proceed = messagebox.askyesno("Unused Slots",
+                f"Image slot(s) {unused} are loaded but not referenced in any segment.\n"
+                f"They will be ignored. Continue anyway?")
+            if not proceed:
+                return
 
         self._running = True
         self._gen_btn.config(state="disabled")

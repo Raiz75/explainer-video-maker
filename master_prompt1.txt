@@ -1,0 +1,52 @@
+Generate a long-form YouTube educational video script.
+
+TOPIC: HOW COMPOUND INTEREST WORKS
+
+GOAL:
+Create a structured explainer video script with visual planning for each segment.
+
+REQUIREMENTS:
+- 8–10 segments total
+- 1200–1800 words total
+- Each segment: 80–150 words
+- Each segment must focus on ONE idea only
+
+OUTPUT FORMAT (STRICT JSON):
+
+Return ONLY a valid JSON array.
+
+Each segment MUST include:
+- segment number
+- narration text
+- image mapping (list of image IDs)
+
+FORMAT:
+
+[
+  {
+    "segment": 1,
+    "text": "...",
+    "images": [1, 2, 3]
+  }
+]
+
+RULES:
+
+1. Image numbering MUST be GLOBAL
+   - Start at 1
+   - Continue across ALL segments
+   - No duplicates
+
+2. Image 1 MUST be the thumbnail
+   - Represents full video topic
+
+3. Each segment must have 2–5 images
+
+4. Images must represent visual “beats” of the narration
+
+5. JSON must be valid:
+   - no trailing commas
+   - no extra text
+   - no markdown
+
+6. Output ONLY JSON array
