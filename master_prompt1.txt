@@ -1,6 +1,6 @@
 Generate a long-form YouTube educational video script.
 
-TOPIC: HOW COMPOUND INTEREST WORKS
+TOPIC: [TOPIC]
 
 GOAL:
 Create a structured explainer video script with visual planning for each segment.

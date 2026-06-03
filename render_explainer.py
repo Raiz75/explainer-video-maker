@@ -6,8 +6,27 @@
 # every image in that segment so each visual beat gets equal screen time.
 
 import os
+import sys
+import subprocess
 import tempfile
 from datetime import datetime
+
+# ── Suppress console windows for all subprocess calls on Windows ───────────────
+# Must be patched BEFORE moviepy / pydub import so their internal ffmpeg calls
+# inherit the flag too.
+if sys.platform == "win32":
+    _orig_popen = subprocess.Popen
+    _CREATE_NO_WINDOW = 0x08000000
+
+    class _SilentPopen(_orig_popen):
+        def __init__(self, *args, **kwargs):
+            if "creationflags" not in kwargs:
+                kwargs["creationflags"] = _CREATE_NO_WINDOW
+            else:
+                kwargs["creationflags"] |= _CREATE_NO_WINDOW
+            super().__init__(*args, **kwargs)
+
+    subprocess.Popen = _SilentPopen
 
 # ── Canvas config ──────────────────────────────────────────────────────────────
 TARGET_W  = 1920   # YouTube landscape (16:9)

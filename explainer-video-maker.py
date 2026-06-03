@@ -195,16 +195,29 @@ class ExplainerApp(tk.Tk):
                                 state="disabled", wrap="word")
         self._log_box.pack(fill="x", padx=10, pady=8)
 
-        # ── Generate Button ────────────────────────────────────────────────────
-        self._gen_btn = tk.Button(self,
-                                  text="GENERATE VIDEO",
+        # ── Generate + Clear buttons ───────────────────────────────────────────
+        action_row = tk.Frame(self, bg=BG)
+        action_row.pack(fill="x", padx=24, pady=(0, 20))
+
+        self._gen_btn = tk.Button(action_row,
+                                  text="▶  GENERATE VIDEO",
                                   bg=ACCENT, fg="white",
                                   font=("Consolas", 12, "bold"),
                                   relief="flat", cursor="hand2",
                                   activebackground="#c73652",
                                   activeforeground="white",
                                   command=self._on_generate)
-        self._gen_btn.pack(fill="x", padx=24, pady=(0, 20), ipady=10)
+        self._gen_btn.pack(side="left", fill="x", expand=True, ipady=10, padx=(0, 6))
+
+        self._clear_btn = tk.Button(action_row,
+                                    text="🗑  CLEAR ALL",
+                                    bg=SURFACE2, fg="#e94560",
+                                    font=("Consolas", 11, "bold"),
+                                    relief="flat", cursor="hand2",
+                                    activebackground=BORDER,
+                                    activeforeground="#e94560",
+                                    command=self._clear_all)
+        self._clear_btn.pack(side="left", ipady=10, ipadx=14)
 
     # ── Canvas scroll helpers ──────────────────────────────────────────────────
     def _on_inner_configure(self, _event):
@@ -271,6 +284,27 @@ class ExplainerApp(tk.Tk):
             label_text = f"[{i:02d}]" + (" THUMB" if is_thumb else "      ")
             label_fg   = ACCENT if is_thumb else FG_MUTED
             slot["num_lbl"].config(text=label_text, fg=label_fg)
+
+    # ── Clear all data ─────────────────────────────────────────────────────────
+    def _clear_all(self):
+        if self._running:
+            return
+        if not messagebox.askyesno("Clear All Data",
+                                   "Clear the script JSON, all image slots, and the log?"):
+            return
+        # Clear script box
+        self._script_box.delete("1.0", "end")
+        # Destroy all image slot rows and reset list
+        for slot in self._image_slots:
+            slot["frame"].destroy()
+        self._image_slots.clear()
+        # Seed fresh default slots
+        for _ in range(5):
+            self._add_image_slot()
+        # Clear log and reset status
+        self._clear_log()
+        self._set_progress(0)
+        self._set_status("Ready.")
 
 
     # ── Copy prompts ───────────────────────────────────────────────────────────
