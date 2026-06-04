@@ -41,13 +41,17 @@ MASTER_PROMPT2 = _load_prompt("master_prompt2.txt")
 
 
 HINT_JSON = (
-    "JSON format — each segment maps to MULTIPLE images:\n"
+    'Each segment has microsegments — one image per microsegment:\n'
     '[\n'
-    '  {"segment": 1, "text": "Hook narration here.", "images": [1, 2, 3]},\n'
-    '  {"segment": 2, "text": "Explanation narration here.", "images": [4, 5, 6, 7]},\n'
-    '  {"segment": 3, "text": "Next idea here.", "images": [8, 9]}\n'
+    '  {"segment": 1, "microsegments": [\n'
+    '    {"text": "Hook line.", "image": 1},\n'
+    '    {"text": "Next beat.", "image": 2}\n'
+    '  ]},\n'
+    '  {"segment": 2, "microsegments": [\n'
+    '    {"text": "New idea.", "image": 3}\n'
+    '  ]}\n'
     ']\n'
-    "Image 1 = thumbnail. Each segment needs 2–5 images. Numbers must be sequential, never repeated."
+    "image numbers: global, sequential, no duplicates, no gaps."
 )
 
 
@@ -118,7 +122,7 @@ class ExplainerApp(tk.Tk):
                  justify="left").pack(anchor="w", padx=12, pady=(0, 8))
 
         # ── Images panel ───────────────────────────────────────────────────────
-        lf_images = tk.LabelFrame(self, text=" Images — Slot 1 = THUMBNAIL (opening frame) ",
+        lf_images = tk.LabelFrame(self, text=" Images — Content frames only (thumbnail is generated separately) ",
                                   bg=SURFACE, fg="#aaa",
                                   bd=1, relief="flat",
                                   font=("Consolas", 9))
@@ -150,7 +154,7 @@ class ExplainerApp(tk.Tk):
                   activeforeground=FG_GREEN,
                   command=self._add_image_slot).pack(side="left", padx=(0, 8), ipady=4, ipadx=8)
         tk.Label(add_row,
-                 text="Slot 01 = THUMBNAIL. Add one slot per image beat (expect 30–80 total).",
+                 text="Add one slot per image beat (expect 30-80 total). Thumbnail is NOT uploaded here.",
                  bg=SURFACE, fg=FG_MUTED,
                  font=("Consolas", 7)).pack(side="left")
 
@@ -230,15 +234,13 @@ class ExplainerApp(tk.Tk):
     def _add_image_slot(self):
         idx = len(self._image_slots) + 1
         slot = {"path": None}
-        is_thumbnail = (idx == 1)
 
         row = tk.Frame(self._img_inner, bg=SURFACE)
         row.pack(fill="x", padx=4, pady=3)
 
-        label_text = f"[{idx:02d}]" + (" THUMB" if is_thumbnail else "      ")
-        label_fg   = ACCENT if is_thumbnail else FG_MUTED
+        label_text = f"[{idx:02d}]"
         num_lbl = tk.Label(row, text=label_text,
-                           bg=SURFACE, fg=label_fg,
+                           bg=SURFACE, fg=FG_MUTED,
                            font=("Consolas", 9, "bold"), width=10)
         num_lbl.pack(side="left")
 
@@ -280,10 +282,7 @@ class ExplainerApp(tk.Tk):
 
     def _renumber_slots(self):
         for i, slot in enumerate(self._image_slots, 1):
-            is_thumb   = (i == 1)
-            label_text = f"[{i:02d}]" + (" THUMB" if is_thumb else "      ")
-            label_fg   = ACCENT if is_thumb else FG_MUTED
-            slot["num_lbl"].config(text=label_text, fg=label_fg)
+            slot["num_lbl"].config(text=f"[{i:02d}]", fg=FG_MUTED)
 
     # ── Clear all data ─────────────────────────────────────────────────────────
     def _clear_all(self):
@@ -355,32 +354,37 @@ class ExplainerApp(tk.Tk):
             if not isinstance(segments, list) or not segments:
                 raise ValueError("Must be a non-empty JSON array.")
             for seg in segments:
-                if "text" not in seg:
-                    raise ValueError('Each segment needs a "text" key.')
-                if "images" not in seg:
+                seg_id = seg.get("segment", "?")
+                if "microsegments" not in seg:
                     raise ValueError(
-                        'Each segment needs an "images" key (list of image numbers).\n'
-                        'Old "image" (single int) is no longer supported.')
-                if not isinstance(seg["images"], list) or len(seg["images"]) == 0:
-                    raise ValueError(
-                        f'Segment {seg.get("segment","?")} "images" must be a non-empty list.')
-                for n in seg["images"]:
-                    if not isinstance(n, int) or n < 1:
+                        f'Segment {seg_id} is missing "microsegments" key.\n'
+                        f'Expected: {{"segment": N, "microsegments": [{{"text": "...", "image": N}}, ...]}}')
+                if not isinstance(seg["microsegments"], list) or len(seg["microsegments"]) == 0:
+                    raise ValueError(f'Segment {seg_id} "microsegments" must be a non-empty list.')
+                for j, micro in enumerate(seg["microsegments"]):
+                    if "text" not in micro:
+                        raise ValueError(f'Segment {seg_id}, microsegment {j+1}: missing "text".')
+                    if "image" not in micro:
+                        raise ValueError(f'Segment {seg_id}, microsegment {j+1}: missing "image".')
+                    if not isinstance(micro["image"], int) or micro["image"] < 1:
                         raise ValueError(
-                            f'Segment {seg.get("segment","?")}: image number {n!r} must be a positive integer.')
+                            f'Segment {seg_id}, microsegment {j+1}: '
+                            f'"image" must be a positive integer, got {micro["image"]!r}.')
         except Exception as e:
             messagebox.showerror("Invalid JSON", f"Script JSON error:\n{e}")
             return
 
-        # Collect ALL image numbers referenced across all segments
+        # Collect all image numbers across all microsegments
         all_image_nums = []
         seen = set()
         for seg in segments:
-            for n in seg["images"]:
+            seg_id = seg.get("segment", "?")
+            for micro in seg["microsegments"]:
+                n = micro["image"]
                 if n in seen:
                     messagebox.showerror("Duplicate Image Number",
-                        f"Image number {n} appears in more than one segment.\n"
-                        f"Every image must belong to exactly one segment.")
+                        f'Image number {n} appears more than once.\n'
+                        f'Every microsegment must have a unique image number.')
                     return
                 seen.add(n)
                 all_image_nums.append(n)

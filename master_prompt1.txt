@@ -6,10 +6,11 @@ GOAL:
 Create a structured explainer video script with visual planning for each segment.
 
 REQUIREMENTS:
-- 8–10 segments total
-- 1200–1800 words total
-- Each segment: 80–150 words
-- Each segment must focus on ONE idea only
+- 8-10 segments total
+- 1200-1800 words total
+- Each segment must focus on ONE broad idea
+- Each segment is divided into microsegments
+- Each microsegment = ONE sentence or short thought (10-30 words) mapped to ONE image
 
 OUTPUT FORMAT (STRICT JSON):
 
@@ -17,16 +18,27 @@ Return ONLY a valid JSON array.
 
 Each segment MUST include:
 - segment number
-- narration text
-- image mapping (list of image IDs)
+- microsegments: array of objects, each with:
+  - text: the narration line for that beat
+  - image: a globally unique image number (integer)
 
 FORMAT:
 
 [
   {
     "segment": 1,
-    "text": "...",
-    "images": [1, 2, 3]
+    "microsegments": [
+      {"text": "Hook line here.", "image": 1},
+      {"text": "Next thought here.", "image": 2},
+      {"text": "Another beat.", "image": 3}
+    ]
+  },
+  {
+    "segment": 2,
+    "microsegments": [
+      {"text": "New idea starts here.", "image": 4},
+      {"text": "Supporting detail.", "image": 5}
+    ]
   }
 ]
 
@@ -34,15 +46,14 @@ RULES:
 
 1. Image numbering MUST be GLOBAL
    - Start at 1
-   - Continue across ALL segments
-   - No duplicates
+   - Increment by 1 across ALL segments and ALL microsegments
+   - No duplicates, no gaps
 
-2. Image 1 MUST be the thumbnail
-   - Represents full video topic
+2. Each microsegment gets exactly ONE image number
 
-3. Each segment must have 2–5 images
+3. Each segment should have 3-6 microsegments
 
-4. Images must represent visual “beats” of the narration
+4. Each microsegment text: 10-30 words, one clear visual idea
 
 5. JSON must be valid:
    - no trailing commas

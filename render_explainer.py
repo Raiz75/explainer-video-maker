@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
-# render_explainer.py — Pipeline: segments → per-segment TTS → multi-image clips → MP4
+# render_explainer.py — Pipeline: microsegments -> per-microsegment TTS -> image clips -> MP4
 #
-# Each segment now carries "images": [list of image numbers].
-# TTS is generated once per segment; its duration is divided evenly across
-# every image in that segment so each visual beat gets equal screen time.
+# Each segment contains "microsegments": [{"text": str, "image": int}, ...]
+# Each microsegment gets its own TTS pass. The image displays for exactly
+# as long as that microsegment's audio plays — no equal-split math.
 
 import os
 import sys
@@ -12,8 +12,6 @@ import tempfile
 from datetime import datetime
 
 # ── Suppress console windows for all subprocess calls on Windows ───────────────
-# Must be patched BEFORE moviepy / pydub import so their internal ffmpeg calls
-# inherit the flag too.
 if sys.platform == "win32":
     _orig_popen = subprocess.Popen
     _CREATE_NO_WINDOW = 0x08000000
@@ -29,7 +27,7 @@ if sys.platform == "win32":
     subprocess.Popen = _SilentPopen
 
 # ── Canvas config ──────────────────────────────────────────────────────────────
-TARGET_W  = 1920   # YouTube landscape (16:9)
+TARGET_W  = 1920
 TARGET_H  = 1080
 FPS       = 30
 VOICE     = "am_adam"
@@ -37,7 +35,7 @@ SPEED     = 1.0
 
 
 def render_explainer_video(
-    segments,       # list of {"segment":int, "text":str, "images":[int, ...]}
+    segments,       # list of {"segment":int, "microsegments":[{"text":str,"image":int},...]}
     image_map,      # dict {image_number(int): file_path(str)}
     output_folder,
     kokoro_model,
@@ -55,8 +53,8 @@ def render_explainer_video(
     from PIL import Image
     import numpy as np
 
-    timestamp  = datetime.now().strftime("%Y%m%d_%H%M%S")
-    tmp_dir    = tempfile.mkdtemp(prefix="explainer_")
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    tmp_dir   = tempfile.mkdtemp(prefix="explainer_")
 
     # ── Step 1: Load Kokoro ────────────────────────────────────────────────────
     log_fn("Loading Kokoro model...")
@@ -64,67 +62,68 @@ def render_explainer_video(
     progress_fn(5)
     kokoro = Kokoro(kokoro_model, kokoro_voice)
 
-    total_segs  = len(segments)
-    audio_clips = []   # one mp3 path per segment (for concatenation)
-    video_clips = []   # one ImageClip per image beat (may be many per segment)
-    total_images_generated = 0
+    # Flatten all microsegments into a single ordered list for progress tracking
+    all_micro = []
+    for seg in segments:
+        seg_num = seg.get("segment", "?")
+        for micro in seg["microsegments"]:
+            all_micro.append({
+                "seg_num":  seg_num,
+                "text":     micro["text"].strip(),
+                "image":    micro["image"],
+            })
 
-    # ── Step 2: Per-segment TTS → split duration across image beats ────────────
-    for i, seg in enumerate(segments):
-        seg_num    = seg.get("segment", i + 1)
-        text       = seg["text"].strip()
-        image_nums = seg["images"]           # list of ints, e.g. [4, 5, 6]
-        n_images   = len(image_nums)
+    total_micro = len(all_micro)
+    log_fn(f"Total microsegments: {total_micro}")
 
-        log_fn(f"[{seg_num}/{total_segs}] TTS ({n_images} images): "
-               f"\"{text[:55]}{'...' if len(text) > 55 else ''}\"")
-        status_fn(f"Generating speech for segment {seg_num}/{total_segs}...")
-        progress_fn(5 + int(60 * i / total_segs))
+    audio_clips = []   # pydub AudioSegment per microsegment (for concatenation)
+    video_clips = []   # moviepy ImageClip per microsegment
 
-        # TTS → WAV → MP3
+    # ── Step 2: Per-microsegment TTS → image clip ──────────────────────────────
+    for idx, micro in enumerate(all_micro):
+        seg_num   = micro["seg_num"]
+        text      = micro["text"]
+        img_num   = micro["image"]
+        img_path  = image_map[img_num]
+
+        log_fn(f"[seg {seg_num} | micro {idx+1}/{total_micro} | img #{img_num}] "
+               f"\"{text[:50]}{'...' if len(text) > 50 else ''}\"")
+        status_fn(f"TTS microsegment {idx+1}/{total_micro}...")
+        progress_fn(5 + int(60 * idx / total_micro))
+
+        # TTS -> WAV -> pydub AudioSegment
         samples, sample_rate = kokoro.create(text, voice=VOICE, speed=SPEED, lang="en-us")
-        wav_path = os.path.join(tmp_dir, f"seg_{seg_num:03d}.wav")
-        mp3_path = os.path.join(tmp_dir, f"seg_{seg_num:03d}.mp3")
-
+        wav_path = os.path.join(tmp_dir, f"micro_{idx:04d}.wav")
         sf.write(wav_path, samples, sample_rate)
         audio_seg = AudioSegment.from_wav(wav_path)
-        audio_seg.export(mp3_path, format="mp3", bitrate="192k")
         os.remove(wav_path)
 
-        seg_duration  = len(audio_seg) / 1000.0          # total seconds for this segment
-        beat_duration = seg_duration / n_images           # equal time per image beat
+        duration_s = len(audio_seg) / 1000.0
+        log_fn(f"  -> {duration_s:.2f}s")
 
-        log_fn(f"  → {seg_duration:.2f}s total  |  "
-               f"{beat_duration:.2f}s per beat  |  images {image_nums}")
+        audio_clips.append(audio_seg)
 
-        audio_clips.append(mp3_path)
+        # Image clip: holds for exactly this microsegment's audio duration
+        img   = Image.open(img_path).convert("RGB")
+        img   = _fit_to_canvas(img, TARGET_W, TARGET_H)
+        arr   = np.array(img)
+        clip  = ImageClip(arr).set_duration(duration_s)
+        video_clips.append(clip)
 
-        # One ImageClip per visual beat, each holding for beat_duration seconds
-        for img_num in image_nums:
-            img_path = image_map[img_num]
-            img      = Image.open(img_path).convert("RGB")
-            img      = _fit_to_canvas(img, TARGET_W, TARGET_H)
-            arr      = np.array(img)
-            clip     = ImageClip(arr).set_duration(beat_duration)
-            video_clips.append(clip)
-            total_images_generated += 1
-
-    log_fn(f"Total image clips generated: {total_images_generated}")
-
-    # ── Step 3: Concatenate all audio → single MP3 ────────────────────────────
-    log_fn("Combining audio segments...")
+    # ── Step 3: Concatenate all audio -> single MP3 ────────────────────────────
+    log_fn("Combining audio...")
     status_fn("Combining audio...")
     progress_fn(68)
 
     combined_audio = AudioSegment.empty()
-    for mp3 in audio_clips:
-        combined_audio += AudioSegment.from_mp3(mp3)
+    for a in audio_clips:
+        combined_audio += a
 
     combined_mp3 = os.path.join(tmp_dir, "combined.mp3")
     combined_audio.export(combined_mp3, format="mp3", bitrate="192k")
 
-    # ── Step 4: Concatenate all image clips ───────────────────────────────────
-    log_fn(f"Compositing {len(video_clips)} video clips...")
+    # ── Step 4: Concatenate image clips ───────────────────────────────────────
+    log_fn(f"Compositing {len(video_clips)} image clips...")
     status_fn("Compositing video...")
     progress_fn(75)
 
@@ -134,8 +133,8 @@ def render_explainer_video(
 
     # ── Step 5: Export MP4 ────────────────────────────────────────────────────
     out_path = os.path.join(output_folder, f"explainer_{timestamp}.mp4")
-    log_fn(f"Rendering MP4 ({TARGET_W}×{TARGET_H} @ {FPS}fps) — YouTube 16:9...")
-    status_fn("Rendering MP4 (1920×1080)...")
+    log_fn(f"Rendering MP4 ({TARGET_W}x{TARGET_H} @ {FPS}fps)...")
+    status_fn("Rendering MP4 (1920x1080)...")
     progress_fn(82)
 
     final_video.write_videofile(
@@ -149,10 +148,7 @@ def render_explainer_video(
     )
     progress_fn(97)
 
-    # ── Cleanup temp files ─────────────────────────────────────────────────────
-    for mp3 in audio_clips:
-        try: os.remove(mp3)
-        except: pass
+    # ── Cleanup ────────────────────────────────────────────────────────────────
     try: os.remove(combined_mp3)
     except: pass
     try: os.rmdir(tmp_dir)
@@ -164,19 +160,13 @@ def render_explainer_video(
 
 # ── Image fit helper ───────────────────────────────────────────────────────────
 def _fit_to_canvas(img, canvas_w, canvas_h):
-    """
-    Scale image to fill canvas_w × canvas_h via cover-fit (center-crop),
-    preserving aspect ratio. Returns a PIL Image of exactly canvas_w × canvas_h.
-    """
     from PIL import Image
-
     img_w, img_h = img.size
     scale = max(canvas_w / img_w, canvas_h / img_h)
     new_w = int(img_w * scale)
     new_h = int(img_h * scale)
     img   = img.resize((new_w, new_h), Image.LANCZOS)
-
-    left = (new_w - canvas_w) // 2
-    top  = (new_h - canvas_h) // 2
-    img  = img.crop((left, top, left + canvas_w, top + canvas_h))
+    left  = (new_w - canvas_w) // 2
+    top   = (new_h - canvas_h) // 2
+    img   = img.crop((left, top, left + canvas_w, top + canvas_h))
     return img
