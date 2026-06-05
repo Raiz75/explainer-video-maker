@@ -1,14 +1,19 @@
 Generate a long-form YouTube educational video script.
 
-TOPIC: [TOPIC]
+TRANSCRIPT:
+[TRANSCRIPT]
 
 GOAL:
-Create a structured explainer video script with visual planning for each segment.
+You are given a transcript from a real video above.
+Study its flow, structure, and progression of ideas.
+Use it as your content blueprint — follow the same sequence of ideas and pacing,
+but rewrite everything in your own words for a visual explainer format.
+Do NOT copy the transcript verbatim. Mirror its flow, not its wording.
 
 REQUIREMENTS:
 - 8-10 segments total
 - 1200-1800 words total
-- Each segment must focus on ONE broad idea
+- Each segment must focus on ONE broad idea (follow the transcript's natural idea progression)
 - Each segment is divided into microsegments
 - Each microsegment = ONE sentence or short thought (10-30 words) mapped to ONE image
 

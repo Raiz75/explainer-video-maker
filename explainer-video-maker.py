@@ -26,8 +26,7 @@ ACCENT   = "#e94560"
 FG_GREEN = "#7fcc7f"
 FG_MUTED = "#888888"
 
-
-# ── Master Prompts (loaded from files) ────────────────────────────────────────
+# ── Master Prompts ─────────────────────────────────────────────────────────────
 def _load_prompt(filename):
     path = os.path.join(SCRIPT_DIR, filename)
     try:
@@ -38,7 +37,6 @@ def _load_prompt(filename):
 
 MASTER_PROMPT1 = _load_prompt("master_prompt1.txt")
 MASTER_PROMPT2 = _load_prompt("master_prompt2.txt")
-
 
 HINT_JSON = (
     'Each segment has microsegments — one image per microsegment:\n'
@@ -54,156 +52,26 @@ HINT_JSON = (
     "image numbers: global, sequential, no duplicates, no gaps."
 )
 
-
 # ── Main App ───────────────────────────────────────────────────────────────────
 class ExplainerApp(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("Long-Form Explainer Video Maker")
-        self.geometry("720x960")
-        self.resizable(False, False)
+        self.geometry("740x700")
+        self.minsize(740, 500)
         self.configure(bg=BG)
         self._running = False
-        self._image_slots = []   # list of {"path": str, "frame": Frame, "label": Label}
+        self._image_slots = []
         self._build_ui()
 
     def _build_ui(self):
         import tkinter.ttk as ttk
 
-        # ── Title ──────────────────────────────────────────────────────────────
-        tk.Label(self, text="LONG-FORM EXPLAINER VIDEO MAKER",
-                 bg=BG, fg=ACCENT,
-                 font=("Consolas", 15, "bold")).pack(pady=(18, 2))
-        tk.Label(self, text="AI Script  •  Equal Segments  •  Kokoro TTS  •  YouTube MP4  •  Local",
-                 bg=BG, fg=FG_MUTED,
-                 font=("Consolas", 9)).pack(pady=(0, 12))
+        # ── Bottom bar: always visible Generate + Clear ────────────────────────
+        bottom = tk.Frame(self, bg=BG)
+        bottom.pack(side="bottom", fill="x", padx=24, pady=10)
 
-        # ── Copy Master Prompts ────────────────────────────────────────────────
-        btn_row = tk.Frame(self, bg=BG)
-        btn_row.pack(fill="x", padx=24, pady=(0, 12))
-
-        self._copy_btn1 = tk.Button(
-            btn_row, text="📋  COPY PROMPT 1  (Script)",
-            bg=BORDER, fg="#a8d8ea",
-            font=("Consolas", 10, "bold"),
-            relief="flat", cursor="hand2",
-            activebackground="#1a472a",
-            activeforeground=FG_GREEN,
-            command=self._copy_prompt1)
-        self._copy_btn1.pack(side="left", fill="x", expand=True, ipady=7, padx=(0, 6))
-
-        self._copy_btn2 = tk.Button(
-            btn_row, text="📋  COPY PROMPT 2  (Images)",
-            bg=BORDER, fg="#a8d8ea",
-            font=("Consolas", 10, "bold"),
-            relief="flat", cursor="hand2",
-            activebackground="#1a472a",
-            activeforeground=FG_GREEN,
-            command=self._copy_prompt2)
-        self._copy_btn2.pack(side="left", fill="x", expand=True, ipady=7)
-
-        # ── Script JSON input ──────────────────────────────────────────────────
-        lf_script = tk.LabelFrame(self, text=" Script Segments (JSON) ",
-                                  bg=SURFACE, fg="#aaa",
-                                  bd=1, relief="flat",
-                                  font=("Consolas", 9))
-        lf_script.pack(fill="x", padx=24, pady=(0, 10))
-
-        self._script_box = tk.Text(lf_script,
-                                   bg=SURFACE2, fg="#a8d8a8",
-                                   insertbackground=ACCENT,
-                                   font=("Consolas", 10),
-                                   height=10, relief="flat", bd=8,
-                                   wrap="word")
-        self._script_box.pack(fill="x", padx=10, pady=(10, 4))
-        tk.Label(lf_script, text=HINT_JSON,
-                 bg=SURFACE, fg=FG_MUTED,
-                 font=("Consolas", 7),
-                 justify="left").pack(anchor="w", padx=12, pady=(0, 8))
-
-        # ── Images panel ───────────────────────────────────────────────────────
-        lf_images = tk.LabelFrame(self, text=" Images — Content frames only (thumbnail is generated separately) ",
-                                  bg=SURFACE, fg="#aaa",
-                                  bd=1, relief="flat",
-                                  font=("Consolas", 9))
-        lf_images.pack(fill="x", padx=24, pady=(0, 10))
-
-        # Scrollable canvas for image slots
-        self._img_canvas = tk.Canvas(lf_images, bg=SURFACE,
-                                     height=160, highlightthickness=0)
-        self._img_scrollbar = ttk.Scrollbar(lf_images, orient="vertical",
-                                            command=self._img_canvas.yview)
-        self._img_canvas.configure(yscrollcommand=self._img_scrollbar.set)
-        self._img_scrollbar.pack(side="right", fill="y", pady=6)
-        self._img_canvas.pack(side="left", fill="both", expand=True, padx=(10, 0), pady=6)
-
-        self._img_inner = tk.Frame(self._img_canvas, bg=SURFACE)
-        self._img_canvas_win = self._img_canvas.create_window(
-            (0, 0), window=self._img_inner, anchor="nw")
-        self._img_inner.bind("<Configure>", self._on_inner_configure)
-        self._img_canvas.bind("<Configure>", self._on_canvas_configure)
-
-        # + Add Image button
-        add_row = tk.Frame(lf_images, bg=SURFACE)
-        add_row.pack(fill="x", padx=10, pady=(0, 8))
-        tk.Button(add_row, text="＋  ADD IMAGE SLOT",
-                  bg=SURFACE2, fg=FG_GREEN,
-                  font=("Consolas", 9, "bold"),
-                  relief="flat", cursor="hand2",
-                  activebackground=BORDER,
-                  activeforeground=FG_GREEN,
-                  command=self._add_image_slot).pack(side="left", padx=(0, 8), ipady=4, ipadx=8)
-        tk.Label(add_row,
-                 text="Add one slot per image beat (expect 30-80 total). Thumbnail is NOT uploaded here.",
-                 bg=SURFACE, fg=FG_MUTED,
-                 font=("Consolas", 7)).pack(side="left")
-
-        # Seed 5 slots by default (thumbnail + 4 content slots)
-        for _ in range(5):
-            self._add_image_slot()
-
-
-        # ── Progress ───────────────────────────────────────────────────────────
-        lf_prog = tk.LabelFrame(self, text=" Progress ",
-                                bg=SURFACE, fg="#aaa",
-                                bd=1, relief="flat",
-                                font=("Consolas", 9))
-        lf_prog.pack(fill="x", padx=24, pady=(0, 10))
-
-        style = ttk.Style(self)
-        style.theme_use("clam")
-        style.configure("EXP.Horizontal.TProgressbar",
-                         troughcolor=SURFACE2,
-                         background=ACCENT,
-                         thickness=8)
-        self._pb = ttk.Progressbar(lf_prog, style="EXP.Horizontal.TProgressbar",
-                                   orient="horizontal", length=640, mode="determinate")
-        self._pb.pack(padx=14, pady=10)
-
-        self._status_var = tk.StringVar(value="Ready.")
-        tk.Label(lf_prog, textvariable=self._status_var,
-                 bg=SURFACE, fg=FG_MUTED,
-                 font=("Consolas", 8)).pack(anchor="w", padx=14, pady=(0, 6))
-
-        # ── Log ────────────────────────────────────────────────────────────────
-        lf_log = tk.LabelFrame(self, text=" Log ",
-                               bg=SURFACE, fg="#aaa",
-                               bd=1, relief="flat",
-                               font=("Consolas", 9))
-        lf_log.pack(fill="x", padx=24, pady=(0, 12))
-
-        self._log_box = tk.Text(lf_log,
-                                bg=SURFACE2, fg=FG_GREEN,
-                                font=("Consolas", 9),
-                                height=5, relief="flat", bd=6,
-                                state="disabled", wrap="word")
-        self._log_box.pack(fill="x", padx=10, pady=8)
-
-        # ── Generate + Clear buttons ───────────────────────────────────────────
-        action_row = tk.Frame(self, bg=BG)
-        action_row.pack(fill="x", padx=24, pady=(0, 20))
-
-        self._gen_btn = tk.Button(action_row,
+        self._gen_btn = tk.Button(bottom,
                                   text="▶  GENERATE VIDEO",
                                   bg=ACCENT, fg="white",
                                   font=("Consolas", 12, "bold"),
@@ -213,33 +81,202 @@ class ExplainerApp(tk.Tk):
                                   command=self._on_generate)
         self._gen_btn.pack(side="left", fill="x", expand=True, ipady=10, padx=(0, 6))
 
-        self._clear_btn = tk.Button(action_row,
+        self._clear_btn = tk.Button(bottom,
                                     text="🗑  CLEAR ALL",
-                                    bg=SURFACE2, fg="#e94560",
+                                    bg=SURFACE2, fg=ACCENT,
                                     font=("Consolas", 11, "bold"),
                                     relief="flat", cursor="hand2",
                                     activebackground=BORDER,
-                                    activeforeground="#e94560",
+                                    activeforeground=ACCENT,
                                     command=self._clear_all)
         self._clear_btn.pack(side="left", ipady=10, ipadx=14)
 
+        # ── Separator ──────────────────────────────────────────────────────────
+        tk.Frame(self, bg=BORDER, height=1).pack(side="bottom", fill="x")
+
+        # ── Scrollable main area ───────────────────────────────────────────────
+        outer = tk.Frame(self, bg=BG)
+        outer.pack(side="top", fill="both", expand=True)
+
+        self._main_canvas = tk.Canvas(outer, bg=BG, highlightthickness=0)
+        vscroll = ttk.Scrollbar(outer, orient="vertical", command=self._main_canvas.yview)
+        self._main_canvas.configure(yscrollcommand=vscroll.set)
+        vscroll.pack(side="right", fill="y")
+        self._main_canvas.pack(side="left", fill="both", expand=True)
+
+        self._scroll_frame = tk.Frame(self._main_canvas, bg=BG)
+        self._scroll_win = self._main_canvas.create_window(
+            (0, 0), window=self._scroll_frame, anchor="nw")
+
+        self._scroll_frame.bind("<Configure>", self._on_scroll_configure)
+        self._main_canvas.bind("<Configure>", self._on_canvas_resize)
+
+        # Mouse wheel scrolling
+        self._main_canvas.bind_all("<MouseWheel>",
+            lambda e: self._main_canvas.yview_scroll(int(-1 * (e.delta / 120)), "units"))
+
+        # Build all content inside self._scroll_frame
+        self._build_content(ttk)
+
+    def _on_scroll_configure(self, _e):
+        self._main_canvas.configure(scrollregion=self._main_canvas.bbox("all"))
+
+    def _on_canvas_resize(self, e):
+        self._main_canvas.itemconfig(self._scroll_win, width=e.width)
+
+    def _build_content(self, ttk):
+        f = self._scroll_frame
+
+        # ── Title ──────────────────────────────────────────────────────────────
+        tk.Label(f, text="LONG-FORM EXPLAINER VIDEO MAKER",
+                 bg=BG, fg=ACCENT,
+                 font=("Consolas", 15, "bold")).pack(pady=(18, 2))
+        tk.Label(f, text="AI Script  •  Equal Segments  •  Kokoro TTS  •  YouTube MP4  •  Local",
+                 bg=BG, fg=FG_MUTED,
+                 font=("Consolas", 9)).pack(pady=(0, 12))
+
+        # ── Copy Prompt buttons ────────────────────────────────────────────────
+        btn_row = tk.Frame(f, bg=BG)
+        btn_row.pack(fill="x", padx=24, pady=(0, 12))
+
+        self._copy_btn1 = tk.Button(
+            btn_row, text="📋  COPY PROMPT 1  (Script)",
+            bg=BORDER, fg="#a8d8ea",
+            font=("Consolas", 10, "bold"),
+            relief="flat", cursor="hand2",
+            activebackground="#1a472a", activeforeground=FG_GREEN,
+            command=self._copy_prompt1)
+        self._copy_btn1.pack(side="left", fill="x", expand=True, ipady=7, padx=(0, 6))
+
+        self._copy_btn2 = tk.Button(
+            btn_row, text="📋  COPY PROMPT 2  (Images)",
+            bg=BORDER, fg="#a8d8ea",
+            font=("Consolas", 10, "bold"),
+            relief="flat", cursor="hand2",
+            activebackground="#1a472a", activeforeground=FG_GREEN,
+            command=self._copy_prompt2)
+        self._copy_btn2.pack(side="left", fill="x", expand=True, ipady=7)
+
+        # ── Transcript ────────────────────────────────────────────────────────
+        lf_t = tk.LabelFrame(f, text=" Reference Transcript (paste from famous video) ",
+                             bg=SURFACE, fg="#aaa", bd=1, relief="flat",
+                             font=("Consolas", 9))
+        lf_t.pack(fill="x", padx=24, pady=(0, 10))
+
+        self._transcript_box = tk.Text(lf_t, bg=SURFACE2, fg="#d4a8d4",
+                                       insertbackground=ACCENT,
+                                       font=("Consolas", 10),
+                                       height=7, relief="flat", bd=8, wrap="word")
+        self._transcript_box.pack(fill="x", padx=10, pady=(10, 4))
+        tk.Label(lf_t,
+                 text="Paste the transcript here. Prompt 1 will use it as the flow reference.",
+                 bg=SURFACE, fg=FG_MUTED,
+                 font=("Consolas", 7)).pack(anchor="w", padx=12, pady=(0, 8))
+
+        # ── Script JSON ────────────────────────────────────────────────────────
+        lf_s = tk.LabelFrame(f, text=" Script Segments (JSON) ",
+                             bg=SURFACE, fg="#aaa", bd=1, relief="flat",
+                             font=("Consolas", 9))
+        lf_s.pack(fill="x", padx=24, pady=(0, 10))
+
+        script_row = tk.Frame(lf_s, bg=SURFACE2)
+        script_row.pack(fill="x", padx=10, pady=(10, 4))
+
+        self._script_box = tk.Text(script_row, bg=SURFACE2, fg="#a8d8a8",
+                                   insertbackground=ACCENT,
+                                   font=("Consolas", 10),
+                                   height=10, relief="flat", bd=8, wrap="word",
+                                   yscrollcommand=lambda *a: _script_sb.set(*a))
+        _script_sb = ttk.Scrollbar(script_row, orient="vertical",
+                                   command=self._script_box.yview)
+        _script_sb.pack(side="right", fill="y")
+        self._script_box.pack(side="left", fill="x", expand=True)
+
+        tk.Label(lf_s, text=HINT_JSON, bg=SURFACE, fg=FG_MUTED,
+                 font=("Consolas", 7), justify="left").pack(anchor="w", padx=12, pady=(0, 8))
+
+        # ── Images panel ───────────────────────────────────────────────────────
+        lf_i = tk.LabelFrame(f, text=" Images — Content frames only (thumbnail generated separately) ",
+                             bg=SURFACE, fg="#aaa", bd=1, relief="flat",
+                             font=("Consolas", 9))
+        lf_i.pack(fill="x", padx=24, pady=(0, 10))
+
+        self._img_canvas = tk.Canvas(lf_i, bg=SURFACE, height=160, highlightthickness=0)
+        self._img_scrollbar = ttk.Scrollbar(lf_i, orient="vertical",
+                                            command=self._img_canvas.yview)
+        self._img_canvas.configure(yscrollcommand=self._img_scrollbar.set)
+        self._img_scrollbar.pack(side="right", fill="y", pady=6)
+        self._img_canvas.pack(side="left", fill="both", expand=True, padx=(10, 0), pady=6)
+
+        self._img_inner = tk.Frame(self._img_canvas, bg=SURFACE)
+        self._img_canvas_win = self._img_canvas.create_window(
+            (0, 0), window=self._img_inner, anchor="nw")
+        self._img_inner.bind("<Configure>", self._on_inner_configure)
+        self._img_canvas.bind("<Configure>", self._on_img_canvas_configure)
+
+        add_row = tk.Frame(lf_i, bg=SURFACE)
+        add_row.pack(fill="x", padx=10, pady=(0, 8))
+        tk.Button(add_row, text="＋  ADD IMAGE SLOT",
+                  bg=SURFACE2, fg=FG_GREEN,
+                  font=("Consolas", 9, "bold"),
+                  relief="flat", cursor="hand2",
+                  activebackground=BORDER, activeforeground=FG_GREEN,
+                  command=self._add_image_slot).pack(side="left", padx=(0, 8), ipady=4, ipadx=8)
+        tk.Label(add_row,
+                 text="Add one slot per image beat (expect 30-80 total). Thumbnail NOT uploaded here.",
+                 bg=SURFACE, fg=FG_MUTED,
+                 font=("Consolas", 7)).pack(side="left")
+
+        for _ in range(5):
+            self._add_image_slot()
+
+        # ── Progress ───────────────────────────────────────────────────────────
+        lf_p = tk.LabelFrame(f, text=" Progress ",
+                             bg=SURFACE, fg="#aaa", bd=1, relief="flat",
+                             font=("Consolas", 9))
+        lf_p.pack(fill="x", padx=24, pady=(0, 10))
+
+        style = ttk.Style(self)
+        style.theme_use("clam")
+        style.configure("EXP.Horizontal.TProgressbar",
+                        troughcolor=SURFACE2, background=ACCENT, thickness=8)
+        self._pb = ttk.Progressbar(lf_p, style="EXP.Horizontal.TProgressbar",
+                                   orient="horizontal", mode="determinate")
+        self._pb.pack(fill="x", padx=14, pady=10)
+
+        self._status_var = tk.StringVar(value="Ready.")
+        tk.Label(lf_p, textvariable=self._status_var,
+                 bg=SURFACE, fg=FG_MUTED,
+                 font=("Consolas", 8)).pack(anchor="w", padx=14, pady=(0, 6))
+
+        # ── Log ────────────────────────────────────────────────────────────────
+        lf_l = tk.LabelFrame(f, text=" Log ",
+                             bg=SURFACE, fg="#aaa", bd=1, relief="flat",
+                             font=("Consolas", 9))
+        lf_l.pack(fill="x", padx=24, pady=(0, 20))
+
+        self._log_box = tk.Text(lf_l, bg=SURFACE2, fg=FG_GREEN,
+                                font=("Consolas", 9),
+                                height=5, relief="flat", bd=6,
+                                state="disabled", wrap="word")
+        self._log_box.pack(fill="x", padx=10, pady=8)
+
     # ── Canvas scroll helpers ──────────────────────────────────────────────────
-    def _on_inner_configure(self, _event):
+    def _on_inner_configure(self, _e):
         self._img_canvas.configure(scrollregion=self._img_canvas.bbox("all"))
 
-    def _on_canvas_configure(self, event):
-        self._img_canvas.itemconfig(self._img_canvas_win, width=event.width)
+    def _on_img_canvas_configure(self, e):
+        self._img_canvas.itemconfig(self._img_canvas_win, width=e.width)
 
     # ── Image slot management ──────────────────────────────────────────────────
     def _add_image_slot(self):
-        idx = len(self._image_slots) + 1
+        idx  = len(self._image_slots) + 1
         slot = {"path": None}
 
         row = tk.Frame(self._img_inner, bg=SURFACE)
         row.pack(fill="x", padx=4, pady=3)
 
-        label_text = f"[{idx:02d}]"
-        num_lbl = tk.Label(row, text=label_text,
+        num_lbl = tk.Label(row, text=f"[{idx:02d}]",
                            bg=SURFACE, fg=FG_MUTED,
                            font=("Consolas", 9, "bold"), width=10)
         num_lbl.pack(side="left")
@@ -263,53 +300,51 @@ class ExplainerApp(tk.Tk):
             self._image_slots.remove(s)
             self._renumber_slots()
 
-        tk.Button(row, text="📂",
-                  bg=BORDER, fg="#a8d8ea",
-                  font=("Consolas", 9),
-                  relief="flat", cursor="hand2",
+        tk.Button(row, text="📂", bg=BORDER, fg="#a8d8ea",
+                  font=("Consolas", 9), relief="flat", cursor="hand2",
                   command=browse).pack(side="left", padx=(4, 2), ipady=3, ipadx=4)
 
-        tk.Button(row, text="✕",
-                  bg=SURFACE2, fg="#e94560",
-                  font=("Consolas", 9),
-                  relief="flat", cursor="hand2",
+        tk.Button(row, text="✕", bg=SURFACE2, fg=ACCENT,
+                  font=("Consolas", 9), relief="flat", cursor="hand2",
                   command=remove).pack(side="left", padx=(0, 4), ipady=3, ipadx=4)
 
-        slot["frame"] = row
+        slot["frame"]   = row
         slot["num_lbl"] = num_lbl
-        slot["path_lbl"] = path_lbl
+        slot["path_lbl"]= path_lbl
         self._image_slots.append(slot)
 
     def _renumber_slots(self):
         for i, slot in enumerate(self._image_slots, 1):
             slot["num_lbl"].config(text=f"[{i:02d}]", fg=FG_MUTED)
 
-    # ── Clear all data ─────────────────────────────────────────────────────────
+    # ── Clear all ──────────────────────────────────────────────────────────────
     def _clear_all(self):
         if self._running:
             return
         if not messagebox.askyesno("Clear All Data",
-                                   "Clear the script JSON, all image slots, and the log?"):
+                                   "Clear the transcript, script JSON, all image slots, and the log?"):
             return
-        # Clear script box
         self._script_box.delete("1.0", "end")
-        # Destroy all image slot rows and reset list
+        self._transcript_box.delete("1.0", "end")
         for slot in self._image_slots:
             slot["frame"].destroy()
         self._image_slots.clear()
-        # Seed fresh default slots
         for _ in range(5):
             self._add_image_slot()
-        # Clear log and reset status
         self._clear_log()
         self._set_progress(0)
         self._set_status("Ready.")
 
-
     # ── Copy prompts ───────────────────────────────────────────────────────────
     def _copy_prompt1(self):
+        transcript = self._transcript_box.get("1.0", "end").strip()
+        if not transcript:
+            messagebox.showwarning("No Transcript",
+                                   "Paste a transcript first before copying Prompt 1.")
+            return
+        prompt = MASTER_PROMPT1.replace("[TRANSCRIPT]", transcript)
         self.clipboard_clear()
-        self.clipboard_append(MASTER_PROMPT1)
+        self.clipboard_append(prompt)
         self._copy_btn1.config(bg="#1a472a", fg=FG_GREEN, text="✅  COPIED! (Prompt 1)")
         self.after(2000, lambda: self._copy_btn1.config(
             bg=BORDER, fg="#a8d8ea", text="📋  COPY PROMPT 1  (Script)"))
@@ -344,7 +379,6 @@ class ExplainerApp(tk.Tk):
         if self._running:
             return
 
-        # Parse JSON
         raw = self._script_box.get("1.0", "end").strip()
         if not raw:
             messagebox.showwarning("Empty Script", "Paste your script JSON first.")
@@ -357,39 +391,34 @@ class ExplainerApp(tk.Tk):
                 seg_id = seg.get("segment", "?")
                 if "microsegments" not in seg:
                     raise ValueError(
-                        f'Segment {seg_id} is missing "microsegments" key.\n'
-                        f'Expected: {{"segment": N, "microsegments": [{{"text": "...", "image": N}}, ...]}}')
-                if not isinstance(seg["microsegments"], list) or len(seg["microsegments"]) == 0:
+                        f'Segment {seg_id} missing "microsegments" key.')
+                if not isinstance(seg["microsegments"], list) or not seg["microsegments"]:
                     raise ValueError(f'Segment {seg_id} "microsegments" must be a non-empty list.')
                 for j, micro in enumerate(seg["microsegments"]):
                     if "text" not in micro:
-                        raise ValueError(f'Segment {seg_id}, microsegment {j+1}: missing "text".')
+                        raise ValueError(f'Segment {seg_id}, micro {j+1}: missing "text".')
                     if "image" not in micro:
-                        raise ValueError(f'Segment {seg_id}, microsegment {j+1}: missing "image".')
+                        raise ValueError(f'Segment {seg_id}, micro {j+1}: missing "image".')
                     if not isinstance(micro["image"], int) or micro["image"] < 1:
                         raise ValueError(
-                            f'Segment {seg_id}, microsegment {j+1}: '
+                            f'Segment {seg_id}, micro {j+1}: '
                             f'"image" must be a positive integer, got {micro["image"]!r}.')
         except Exception as e:
             messagebox.showerror("Invalid JSON", f"Script JSON error:\n{e}")
             return
 
-        # Collect all image numbers across all microsegments
         all_image_nums = []
         seen = set()
         for seg in segments:
-            seg_id = seg.get("segment", "?")
             for micro in seg["microsegments"]:
                 n = micro["image"]
                 if n in seen:
                     messagebox.showerror("Duplicate Image Number",
-                        f'Image number {n} appears more than once.\n'
-                        f'Every microsegment must have a unique image number.')
+                        f'Image number {n} appears more than once.')
                     return
                 seen.add(n)
                 all_image_nums.append(n)
 
-        # Validate image slots — every slot must have a file
         image_map = {}
         for i, slot in enumerate(self._image_slots, 1):
             if slot["path"] is None:
@@ -398,7 +427,6 @@ class ExplainerApp(tk.Tk):
                 return
             image_map[i] = slot["path"]
 
-        # Check all referenced image numbers have a corresponding slot
         missing = sorted(set(all_image_nums) - set(image_map.keys()))
         if missing:
             messagebox.showerror("Missing Image Slots",
@@ -406,13 +434,11 @@ class ExplainerApp(tk.Tk):
                 f"You have {len(self._image_slots)} slot(s).")
             return
 
-        # Warn about unused slots (not an error)
         unused = sorted(set(image_map.keys()) - set(all_image_nums))
         if unused:
-            proceed = messagebox.askyesno("Unused Slots",
-                f"Image slot(s) {unused} are loaded but not referenced in any segment.\n"
-                f"They will be ignored. Continue anyway?")
-            if not proceed:
+            if not messagebox.askyesno("Unused Slots",
+                f"Image slot(s) {unused} are loaded but not referenced.\n"
+                f"They will be ignored. Continue?"):
                 return
 
         self._running = True

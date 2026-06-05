@@ -66,7 +66,7 @@ def render_explainer_video(
     from kokoro_onnx import Kokoro
     from pydub import AudioSegment
     from moviepy.editor import (
-        ImageClip, AudioFileClip, concatenate_videoclips
+        ImageClip, AudioFileClip, VideoFileClip, concatenate_videoclips
     )
     from PIL import Image
     import numpy as np
@@ -146,11 +146,23 @@ def render_explainer_video(
     status_fn("Compositing video...")
     progress_fn(75)
 
-    final_video = concatenate_videoclips(video_clips, method="compose")
-    audio_track = AudioFileClip(combined_mp3)
-    final_video = final_video.set_audio(audio_track)
+    content_video = concatenate_videoclips(video_clips, method="compose")
+    audio_track   = AudioFileClip(combined_mp3)
+    content_video = content_video.set_audio(audio_track)
 
-    # ── Step 5: Export MP4 ────────────────────────────────────────────────────
+    # ── Step 5: Prepend channel intro ─────────────────────────────────────────
+    intro_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                              "assets", "video", "WonderSketch-intro.mp4")
+    if os.path.isfile(intro_path):
+        log_fn("Prepending channel intro...")
+        status_fn("Prepending intro...")
+        intro_clip  = VideoFileClip(intro_path).resize((TARGET_W, TARGET_H))
+        final_video = concatenate_videoclips([intro_clip, content_video], method="compose")
+    else:
+        log_fn(f"⚠ Intro not found at {intro_path} — skipping.")
+        final_video = content_video
+
+    # ── Step 6: Export MP4 ────────────────────────────────────────────────────
     out_path = os.path.join(output_folder, f"explainer_{timestamp}.mp4")
     log_fn(f"Rendering MP4 ({TARGET_W}x{TARGET_H} @ {FPS}fps)...")
     status_fn("Rendering MP4 (1920x1080)...")
