@@ -33,6 +33,58 @@ FPS       = 30
 VOICE     = "am_fenrir"
 SPEED     = 1.0
 
+# ── Character pose config ──────────────────────────────────────────────────────
+CHAR_HEIGHT_RATIO = 0.30   # 30% of frame height
+CHAR_MARGIN_X     = 40     # px from right edge
+CHAR_MARGIN_Y     = 30     # px from bottom edge
+CHAR_DIR          = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                 "assets", "character")
+POSE_FILES = {
+    "asking":       "asking-charPose.png",
+    "authority":    "authority-charPose.png",
+    "emphasis":     "emphasis-charPose.png",
+    "explaining":   "explaining-charPose.png",
+    "pointingLeft": "pointingLeft-charPose.png",
+}
+
+# Cache loaded+resized character images so we don't re-open on every microsegment
+_char_cache: dict = {}
+
+
+# ── Character overlay helper ───────────────────────────────────────────────────
+def _get_char_image(pose: str):
+    """Return a cached RGBA PIL Image for the given pose, scaled to CHAR_HEIGHT_RATIO."""
+    from PIL import Image
+    if pose in _char_cache:
+        return _char_cache[pose]
+    filename = POSE_FILES.get(pose)
+    if not filename:
+        return None
+    path = os.path.join(CHAR_DIR, filename)
+    if not os.path.isfile(path):
+        return None
+    img = Image.open(path).convert("RGBA")
+    char_h = int(TARGET_H * CHAR_HEIGHT_RATIO)
+    ratio  = char_h / img.height
+    char_w = int(img.width * ratio)
+    img    = img.resize((char_w, char_h), Image.LANCZOS)
+    _char_cache[pose] = img
+    return img
+
+
+def _composite_char(bg_arr: "np.ndarray", pose: str) -> "np.ndarray":
+    """Paste the character PNG (bottom-right) onto a numpy RGB frame array."""
+    import numpy as np
+    from PIL import Image
+    char = _get_char_image(pose)
+    if char is None:
+        return bg_arr
+    bg   = Image.fromarray(bg_arr, "RGB")
+    x    = TARGET_W - char.width  - CHAR_MARGIN_X
+    y    = TARGET_H - char.height - CHAR_MARGIN_Y
+    bg.paste(char, (x, y), mask=char.split()[3])   # alpha mask
+    return np.array(bg)
+
 
 # ── Vocoder Effect (Daft Punk) ─────────────────────────────────────────────────
 def apply_vocoder(samples, sample_rate):
@@ -86,9 +138,10 @@ def render_explainer_video(
         seg_num = seg.get("segment", "?")
         for micro in seg["microsegments"]:
             all_micro.append({
-                "seg_num":  seg_num,
-                "text":     micro["text"].strip(),
-                "image":    micro["image"],
+                "seg_num": seg_num,
+                "text":    micro["text"].strip(),
+                "image":   micro["image"],
+                "pose":    micro.get("pose", "explaining"),   # default if missing
             })
 
     total_micro = len(all_micro)
@@ -103,8 +156,9 @@ def render_explainer_video(
         text      = micro["text"]
         img_num   = micro["image"]
         img_path  = image_map[img_num]
+        pose      = micro["pose"]
 
-        log_fn(f"[seg {seg_num} | micro {idx+1}/{total_micro} | img #{img_num}] "
+        log_fn(f"[seg {seg_num} | micro {idx+1}/{total_micro} | img #{img_num} | pose:{pose}] "
                f"\"{text[:50]}{'...' if len(text) > 50 else ''}\"")
         status_fn(f"TTS microsegment {idx+1}/{total_micro}...")
         progress_fn(5 + int(60 * idx / total_micro))
@@ -122,11 +176,13 @@ def render_explainer_video(
 
         audio_clips.append(audio_seg)
 
-        # Image clip: holds for exactly this microsegment's audio duration
-        img   = Image.open(img_path).convert("RGB")
-        img   = _fit_to_canvas(img, TARGET_W, TARGET_H)
-        arr   = np.array(img)
-        clip  = ImageClip(arr).set_duration(duration_s)
+        # Composite: background image + character pose overlay
+        img = Image.open(img_path).convert("RGB")
+        img = _fit_to_canvas(img, TARGET_W, TARGET_H)
+        arr = np.array(img)
+        arr = _composite_char(arr, pose)   # paste mascot bottom-right
+
+        clip = ImageClip(arr).set_duration(duration_s)
         video_clips.append(clip)
 
     # ── Step 3: Concatenate all audio -> single MP3 ────────────────────────────

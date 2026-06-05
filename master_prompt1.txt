@@ -1,4 +1,4 @@
-Generate a long-form YouTube educational video script.
+Generate a long-form YouTube video script.
 
 TRANSCRIPT:
 [TRANSCRIPT]
@@ -7,15 +7,30 @@ GOAL:
 You are given a transcript from a real video above.
 Study its flow, structure, and progression of ideas.
 Use it as your content blueprint — follow the same sequence of ideas and pacing,
-but rewrite everything in your own words for a visual explainer format.
-Do NOT copy the transcript verbatim. Mirror its flow, not its wording.
+but rewrite everything in your own words.
+
+TONE — CRITICAL:
+Do NOT write like an explainer or educator.
+Write like a direct, confident narrator who is TELLING the viewer things:
+- What happened
+- How it works
+- When it occurred
+- Where it took place
+- Why it matters
+Use second person ("you") and present tense where natural.
+Be direct, punchy, and authoritative — not academic, not preachy.
+Examples of the right tone:
+  BAD:  "In this segment, we will explore how the system works."
+  GOOD: "Here's exactly how the system works."
+  BAD:  "It is important to understand that..."
+  GOOD: "This is what you need to know."
 
 REQUIREMENTS:
 - 8-10 segments total
 - 1200-1800 words total
 - Each segment must focus on ONE broad idea (follow the transcript's natural idea progression)
 - Each segment is divided into microsegments
-- Each microsegment = ONE sentence or short thought (10-30 words) mapped to ONE image
+- Each microsegment = ONE sentence or short thought (10-30 words) mapped to ONE image and ONE pose
 
 OUTPUT FORMAT (STRICT JSON):
 
@@ -26,6 +41,12 @@ Each segment MUST include:
 - microsegments: array of objects, each with:
   - text: the narration line for that beat
   - image: a globally unique image number (integer)
+  - pose: one of exactly these 5 values based on the tone of the line:
+      "asking"      — the line poses a question or creates curiosity
+      "authority"   — the line states a fact, conclusion, or authoritative claim
+      "emphasis"    — the line stresses an important point or warning
+      "explaining"  — the line describes a process, sequence, or how something works
+      "pointingLeft"— the line references something shown in the image (directing attention)
 
 FORMAT:
 
@@ -33,16 +54,16 @@ FORMAT:
   {
     "segment": 1,
     "microsegments": [
-      {"text": "Hook line here.", "image": 1},
-      {"text": "Next thought here.", "image": 2},
-      {"text": "Another beat.", "image": 3}
+      {"text": "Hook line here.", "image": 1, "pose": "asking"},
+      {"text": "Next thought here.", "image": 2, "pose": "authority"},
+      {"text": "Another beat.", "image": 3, "pose": "explaining"}
     ]
   },
   {
     "segment": 2,
     "microsegments": [
-      {"text": "New idea starts here.", "image": 4},
-      {"text": "Supporting detail.", "image": 5}
+      {"text": "New idea starts here.", "image": 4, "pose": "emphasis"},
+      {"text": "Supporting detail.", "image": 5, "pose": "pointingLeft"}
     ]
   }
 ]
@@ -56,13 +77,15 @@ RULES:
 
 2. Each microsegment gets exactly ONE image number
 
-3. Each segment should have 3-6 microsegments
+3. Each microsegment gets exactly ONE pose — choose based on the line's intent, not randomly
 
-4. Each microsegment text: 10-30 words, one clear visual idea
+4. Each segment should have 3-6 microsegments
 
-5. JSON must be valid:
+5. Each microsegment text: 10-30 words, one clear visual idea, direct storytelling tone
+
+6. JSON must be valid:
    - no trailing commas
    - no extra text
    - no markdown
 
-6. Output ONLY JSON array
+7. Output ONLY JSON array

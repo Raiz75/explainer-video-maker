@@ -37,19 +37,20 @@ def _load_prompt(filename):
 
 MASTER_PROMPT1 = _load_prompt("master_prompt1.txt")
 MASTER_PROMPT2 = _load_prompt("master_prompt2.txt")
+MASTER_PROMPT3 = _load_prompt("master_prompt3.txt")
 
 HINT_JSON = (
-    'Each segment has microsegments — one image per microsegment:\n'
+    'Each microsegment needs text, image number, and pose:\n'
     '[\n'
     '  {"segment": 1, "microsegments": [\n'
-    '    {"text": "Hook line.", "image": 1},\n'
-    '    {"text": "Next beat.", "image": 2}\n'
+    '    {"text": "Hook line.", "image": 1, "pose": "asking"},\n'
+    '    {"text": "Next beat.", "image": 2, "pose": "authority"}\n'
     '  ]},\n'
     '  {"segment": 2, "microsegments": [\n'
-    '    {"text": "New idea.", "image": 3}\n'
+    '    {"text": "New idea.", "image": 3, "pose": "explaining"}\n'
     '  ]}\n'
     ']\n'
-    "image numbers: global, sequential, no duplicates, no gaps."
+    "poses: asking | authority | emphasis | explaining | pointingLeft"
 )
 
 # ── Main App ───────────────────────────────────────────────────────────────────
@@ -156,6 +157,15 @@ class ExplainerApp(tk.Tk):
             activebackground="#1a472a", activeforeground=FG_GREEN,
             command=self._copy_prompt2)
         self._copy_btn2.pack(side="left", fill="x", expand=True, ipady=7)
+
+        self._copy_btn3 = tk.Button(
+            f, text="📋  COPY PROMPT 3  (Title, Description & Tags)",
+            bg=BORDER, fg="#f0c87a",
+            font=("Consolas", 10, "bold"),
+            relief="flat", cursor="hand2",
+            activebackground="#1a472a", activeforeground=FG_GREEN,
+            command=self._copy_prompt3)
+        self._copy_btn3.pack(fill="x", padx=24, ipady=7, pady=(0, 12))
 
         # ── Transcript ────────────────────────────────────────────────────────
         lf_t = tk.LabelFrame(f, text=" Reference Transcript (paste from famous video) ",
@@ -356,6 +366,19 @@ class ExplainerApp(tk.Tk):
         self.after(2000, lambda: self._copy_btn2.config(
             bg=BORDER, fg="#a8d8ea", text="📋  COPY PROMPT 2  (Images)"))
 
+    def _copy_prompt3(self):
+        script = self._script_box.get("1.0", "end").strip()
+        if not script:
+            messagebox.showwarning("No Script JSON",
+                                   "Paste your script JSON first before copying Prompt 3.")
+            return
+        prompt = MASTER_PROMPT3.replace("[SCRIPT_JSON]", script)
+        self.clipboard_clear()
+        self.clipboard_append(prompt)
+        self._copy_btn3.config(bg="#1a472a", fg=FG_GREEN, text="✅  COPIED! (Prompt 3)")
+        self.after(2000, lambda: self._copy_btn3.config(
+            bg=BORDER, fg="#f0c87a", text="📋  COPY PROMPT 3  (Title, Description & Tags)"))
+
     # ── Log helpers ────────────────────────────────────────────────────────────
     def _log(self, msg):
         self._log_box.config(state="normal")
@@ -403,6 +426,11 @@ class ExplainerApp(tk.Tk):
                         raise ValueError(
                             f'Segment {seg_id}, micro {j+1}: '
                             f'"image" must be a positive integer, got {micro["image"]!r}.')
+                    valid_poses = {"asking","authority","emphasis","explaining","pointingLeft"}
+                    if "pose" in micro and micro["pose"] not in valid_poses:
+                        raise ValueError(
+                            f'Segment {seg_id}, micro {j+1}: '
+                            f'"pose" must be one of {sorted(valid_poses)}, got {micro["pose"]!r}.')
         except Exception as e:
             messagebox.showerror("Invalid JSON", f"Script JSON error:\n{e}")
             return
