@@ -6,9 +6,10 @@ kokoro-v1.0.onnx
 voices-v1.0.bin
 
 # Output and user media
-images/*
+assets/*
+!assets/character/
 output/*
-uploaded-content/*
+content/*
 !output/.gitkeep
 
 # Temp files from MoviePy / pydub
