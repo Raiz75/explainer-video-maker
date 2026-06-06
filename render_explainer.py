@@ -34,7 +34,7 @@ VOICE     = "am_fenrir"
 SPEED     = 1.0
 
 # ── Character pose config ──────────────────────────────────────────────────────
-CHAR_HEIGHT_RATIO = 0.30   # 30% of frame height
+CHAR_HEIGHT_RATIO = 0.50   # 50% of frame height
 CHAR_MARGIN_X     = 40     # px from right edge
 CHAR_MARGIN_Y     = 30     # px from bottom edge
 CHAR_DIR          = os.path.join(os.path.dirname(os.path.abspath(__file__)),
@@ -180,7 +180,8 @@ def render_explainer_video(
         img = Image.open(img_path).convert("RGB")
         img = _fit_to_canvas(img, TARGET_W, TARGET_H)
         arr = np.array(img)
-        arr = _composite_char(arr, pose)   # paste mascot bottom-right
+        if pose:
+            arr = _composite_char(arr, pose)   # paste mascot bottom-right; skipped when pose is null
 
         clip = ImageClip(arr).set_duration(duration_s)
         video_clips.append(clip)

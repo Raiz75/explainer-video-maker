@@ -40,17 +40,21 @@ MASTER_PROMPT2 = _load_prompt("master_prompt2.txt")
 MASTER_PROMPT3 = _load_prompt("master_prompt3.txt")
 
 HINT_JSON = (
-    'Each microsegment needs text, image number, and pose:\n'
+    'Each segment needs: segment, intent, microsegments[]\n'
+    'Each microsegment needs: text, image (int), pose (string or null)\n'
     '[\n'
-    '  {"segment": 1, "microsegments": [\n'
-    '    {"text": "Hook line.", "image": 1, "pose": "asking"},\n'
-    '    {"text": "Next beat.", "image": 2, "pose": "authority"}\n'
+    '  {"segment": 1, "intent": "hook", "microsegments": [\n'
+    '    {"text": "Short punchy hook.", "image": 1, "pose": "emphasis"},\n'
+    '    {"text": "Stakes raised -- this changes everything.", "image": 2, "pose": null},\n'
+    '    {"text": "By the end, you will know exactly why.", "image": 3, "pose": "asking"}\n'
     '  ]},\n'
-    '  {"segment": 2, "microsegments": [\n'
-    '    {"text": "New idea.", "image": 3, "pose": "explaining"}\n'
+    '  {"segment": 2, "intent": "setup", "microsegments": [\n'
+    '    {"text": "Here is the world before everything changed.", "image": 4, "pose": "explaining"},\n'
+    '    {"text": "It looked normal.", "image": 5, "pose": null}\n'
     '  ]}\n'
     ']\n'
-    "poses: asking | authority | emphasis | explaining | pointingLeft"
+    'intents: hook | setup | escalation | conflict | reveal | resolution | payoff\n'
+    'poses:   asking | authority | emphasis | explaining | pointingLeft | null (~50% null)'
 )
 
 # ── Main App ───────────────────────────────────────────────────────────────────
@@ -427,10 +431,10 @@ class ExplainerApp(tk.Tk):
                             f'Segment {seg_id}, micro {j+1}: '
                             f'"image" must be a positive integer, got {micro["image"]!r}.')
                     valid_poses = {"asking","authority","emphasis","explaining","pointingLeft"}
-                    if "pose" in micro and micro["pose"] not in valid_poses:
+                    if "pose" in micro and micro["pose"] is not None and micro["pose"] not in valid_poses:
                         raise ValueError(
                             f'Segment {seg_id}, micro {j+1}: '
-                            f'"pose" must be one of {sorted(valid_poses)}, got {micro["pose"]!r}.')
+                            f'"pose" must be one of {sorted(valid_poses)} or null, got {micro["pose"]!r}.')
         except Exception as e:
             messagebox.showerror("Invalid JSON", f"Script JSON error:\n{e}")
             return
