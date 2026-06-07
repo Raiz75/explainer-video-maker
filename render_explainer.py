@@ -95,6 +95,7 @@ def render_explainer_video(
     log_fn=print,
     progress_fn=lambda p: None,
     status_fn=lambda s: None,
+    video_title=None,   # str | None — if set, used as the MP4 filename (sanitized)
 ):
     import soundfile as sf
     from kokoro_onnx import Kokoro
@@ -201,7 +202,13 @@ def render_explainer_video(
         final_video = content_video
 
     # ── Step 6: Export MP4 ────────────────────────────────────────────────────
-    out_path = os.path.join(output_folder, f"explainer_{timestamp}.mp4")
+    import re as _re
+    if video_title:
+        _safe = _re.sub(r'[\\/:*?"<>|]', '', video_title).strip()[:120]
+        _safe = _safe if _safe else f"explainer_{timestamp}"
+        out_path = os.path.join(output_folder, f"{_safe}.mp4")
+    else:
+        out_path = os.path.join(output_folder, f"explainer_{timestamp}.mp4")
     log_fn(f"Rendering MP4 ({TARGET_W}x{TARGET_H} @ {FPS}fps)...")
     status_fn("Rendering MP4 (1920x1080)...")
     progress_fn(82)

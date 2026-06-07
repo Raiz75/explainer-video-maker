@@ -171,6 +171,24 @@ class ExplainerApp(tk.Tk):
             command=self._copy_prompt3)
         self._copy_btn3.pack(fill="x", padx=24, ipady=7, pady=(0, 12))
 
+        # ── Video Details (Prompt 3 JSON reply) ───────────────────────────────
+        lf_d = tk.LabelFrame(f, text=" Video Details  (paste JSON reply from Prompt 3) ",
+                             bg=SURFACE, fg="#f0c87a", bd=1, relief="flat",
+                             font=("Consolas", 9))
+        lf_d.pack(fill="x", padx=24, pady=(0, 10))
+
+        self._details_box = tk.Text(lf_d, bg=SURFACE2, fg="#f0c87a",
+                                    insertbackground=ACCENT,
+                                    font=("Consolas", 10),
+                                    height=6, relief="flat", bd=8, wrap="word")
+        self._details_box.pack(fill="x", padx=10, pady=(10, 4))
+        tk.Label(lf_d,
+                 text='Paste the {"title":…,"description":…,"tags":[…]} JSON here. '
+                      'Title becomes the filename; full JSON saved as .txt alongside the MP4.',
+                 bg=SURFACE, fg=FG_MUTED,
+                 font=("Consolas", 7), wraplength=660, justify="left"
+                 ).pack(anchor="w", padx=12, pady=(0, 8))
+
         # ── Transcript ────────────────────────────────────────────────────────
         lf_t = tk.LabelFrame(f, text=" Reference Transcript (paste from famous video) ",
                              bg=SURFACE, fg="#aaa", bd=1, relief="flat",
@@ -340,6 +358,7 @@ class ExplainerApp(tk.Tk):
             return
         self._script_box.delete("1.0", "end")
         self._transcript_box.delete("1.0", "end")
+        self._details_box.delete("1.0", "end")
         for slot in self._image_slots:
             slot["frame"].destroy()
         self._image_slots.clear()
@@ -479,6 +498,21 @@ class ExplainerApp(tk.Tk):
         self._set_progress(0)
         self._set_status("Starting pipeline...")
 
+        # ── Parse Video Details JSON (optional but warned) ─────────────────────
+        details_raw = self._details_box.get("1.0", "end").strip()
+        video_title = None
+        details_json = None
+        if details_raw:
+            try:
+                details_json = json.loads(details_raw)
+                video_title = details_json.get("title", "").strip() or None
+            except Exception:
+                messagebox.showwarning(
+                    "Details JSON Invalid",
+                    "The Video Details box does not contain valid JSON.\n"
+                    "The video will be saved with a timestamp filename and no .txt will be written.")
+                details_json = None
+
         def run():
             try:
                 from render_explainer import render_explainer_video
@@ -491,7 +525,19 @@ class ExplainerApp(tk.Tk):
                     log_fn=lambda m: self.after(0, lambda msg=m: self._log(msg)),
                     progress_fn=lambda p: self.after(0, lambda pct=p: self._set_progress(pct)),
                     status_fn=lambda s: self.after(0, lambda st=s: self._set_status(st)),
+                    video_title=video_title,
                 )
+                # ── Write .txt sidecar with the Prompt 3 JSON ─────────────────
+                if details_json is not None:
+                    txt_path = os.path.splitext(out)[0] + ".txt"
+                    try:
+                        with open(txt_path, "w", encoding="utf-8") as fh:
+                            json.dump(details_json, fh, ensure_ascii=False, indent=2)
+                        self.after(0, lambda tp=txt_path: self._log(
+                            f"📄 Details saved: output/{os.path.basename(tp)}"))
+                    except Exception as te:
+                        self.after(0, lambda e=str(te): self._log(f"⚠ Could not write .txt: {e}"))
+
                 self.after(0, lambda: self._set_progress(100))
                 self.after(0, lambda: self._set_status(f"Done → {os.path.basename(out)}"))
                 self.after(0, lambda: self._log(f"✅ Saved: output/{os.path.basename(out)}"))
