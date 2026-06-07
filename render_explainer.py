@@ -86,24 +86,6 @@ def _composite_char(bg_arr: "np.ndarray", pose: str) -> "np.ndarray":
     return np.array(bg)
 
 
-# ── Vocoder Effect (Daft Punk) ─────────────────────────────────────────────────
-def apply_vocoder(samples, sample_rate):
-    import numpy as np
-    samples = samples.astype(np.float32)
-    t = np.arange(len(samples)) / sample_rate
-    carrier = (
-        0.5 * np.sin(2 * np.pi * 120 * t) +
-        0.3 * np.sin(2 * np.pi * 240 * t) +
-        0.2 * np.sin(2 * np.pi * 360 * t)
-    ).astype(np.float32)
-    delay_samples = int(sample_rate * 0.003)
-    delayed = np.zeros_like(samples)
-    delayed[delay_samples:] = samples[:-delay_samples]
-    combed = 0.7 * samples + 0.3 * delayed
-    result = combed * (0.5 + 0.5 * carrier)
-    return (result / (np.max(np.abs(result)) + 1e-9)).astype(np.float32)
-
-
 def render_explainer_video(
     segments,       # list of {"segment":int, "microsegments":[{"text":str,"image":int},...]}
     image_map,      # dict {image_number(int): file_path(str)}
@@ -163,9 +145,8 @@ def render_explainer_video(
         status_fn(f"TTS microsegment {idx+1}/{total_micro}...")
         progress_fn(5 + int(60 * idx / total_micro))
 
-        # TTS -> vocoder effect -> WAV -> pydub AudioSegment
+        # TTS -> WAV -> pydub AudioSegment
         samples, sample_rate = kokoro.create(text, voice=VOICE, speed=SPEED, lang="en-us")
-        samples = apply_vocoder(samples, sample_rate)
         wav_path = os.path.join(tmp_dir, f"micro_{idx:04d}.wav")
         sf.write(wav_path, samples, sample_rate)
         audio_seg = AudioSegment.from_wav(wav_path)
