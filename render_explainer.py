@@ -31,7 +31,31 @@ TARGET_W  = 1920
 TARGET_H  = 1080
 FPS       = 30
 VOICE     = "am_fenrir"
-SPEED     = 1.0
+
+# ── Speed per intent ───────────────────────────────────────────────────────────
+# Replaces the old hardcoded SPEED = 1.0
+INTENT_SPEED = {
+    "hook":       0.88,
+    "setup":      1.00,
+    "escalation": 1.05,
+    "conflict":   0.95,
+    "reveal":     0.90,
+    "resolution": 1.00,
+    "payoff":     0.88,
+}
+SPEED_DEFAULT = 1.00   # fallback for any unrecognised intent
+
+# ── Silence padding after each microsegment (milliseconds) ────────────────────
+INTENT_SILENCE_MS = {
+    "hook":       350,
+    "setup":      200,
+    "escalation": 180,
+    "conflict":   250,
+    "reveal":     300,
+    "resolution": 200,
+    "payoff":     350,
+}
+SILENCE_DEFAULT_MS = 200   # fallback for any unrecognised intent
 
 # ── Character pose config ──────────────────────────────────────────────────────
 CHAR_HEIGHT_RATIO = 0.50   # 50% of frame height
@@ -87,7 +111,7 @@ def _composite_char(bg_arr: "np.ndarray", pose: str) -> "np.ndarray":
 
 
 def render_explainer_video(
-    segments,       # list of {"segment":int, "microsegments":[{"text":str,"image":int},...]}
+    segments,       # list of {"segment":int, "intent":str, "microsegments":[{"text":str,"image":int},...]}
     image_map,      # dict {image_number(int): file_path(str)}
     output_folder,
     kokoro_model,
@@ -115,13 +139,17 @@ def render_explainer_video(
     progress_fn(5)
     kokoro = Kokoro(kokoro_model, kokoro_voice)
 
-    # Flatten all microsegments into a single ordered list for progress tracking
+    # Flatten all microsegments into a single ordered list for progress tracking.
+    # Pull "intent" from the parent segment down into each microsegment entry so
+    # speed and silence lookups are self-contained at render time.
     all_micro = []
     for seg in segments:
         seg_num = seg.get("segment", "?")
+        intent  = seg.get("intent", "")   # e.g. "hook", "reveal", etc.
         for micro in seg["microsegments"]:
             all_micro.append({
                 "seg_num": seg_num,
+                "intent":  intent,
                 "text":    micro["text"].strip(),
                 "image":   micro["image"],
                 "pose":    micro.get("pose", "explaining"),   # default if missing
@@ -136,25 +164,35 @@ def render_explainer_video(
     # ── Step 2: Per-microsegment TTS → image clip ──────────────────────────────
     for idx, micro in enumerate(all_micro):
         seg_num   = micro["seg_num"]
+        intent    = micro["intent"]
         text      = micro["text"]
         img_num   = micro["image"]
         img_path  = image_map[img_num]
         pose      = micro["pose"]
 
-        log_fn(f"[seg {seg_num} | micro {idx+1}/{total_micro} | img #{img_num} | pose:{pose}] "
+        # Resolve speed and silence for this intent
+        speed      = INTENT_SPEED.get(intent, SPEED_DEFAULT)
+        silence_ms = INTENT_SILENCE_MS.get(intent, SILENCE_DEFAULT_MS)
+
+        log_fn(f"[seg {seg_num} | intent:{intent} | micro {idx+1}/{total_micro} | "
+               f"img #{img_num} | pose:{pose} | speed:{speed}] "
                f"\"{text[:50]}{'...' if len(text) > 50 else ''}\"")
         status_fn(f"TTS microsegment {idx+1}/{total_micro}...")
         progress_fn(5 + int(60 * idx / total_micro))
 
         # TTS -> WAV -> pydub AudioSegment
-        samples, sample_rate = kokoro.create(text, voice=VOICE, speed=SPEED, lang="en-us")
+        samples, sample_rate = kokoro.create(text, voice=VOICE, speed=speed, lang="en-us")
         wav_path = os.path.join(tmp_dir, f"micro_{idx:04d}.wav")
         sf.write(wav_path, samples, sample_rate)
         audio_seg = AudioSegment.from_wav(wav_path)
         os.remove(wav_path)
 
+        # Append silence pad for this intent
+        silence_pad = AudioSegment.silent(duration=silence_ms)
+        audio_seg   = audio_seg + silence_pad
+
         duration_s = len(audio_seg) / 1000.0
-        log_fn(f"  -> {duration_s:.2f}s")
+        log_fn(f"  -> {duration_s:.2f}s (incl. {silence_ms}ms silence)")
 
         audio_clips.append(audio_seg)
 

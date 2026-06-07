@@ -103,6 +103,64 @@ Pose repetition rule: never assign the same pose more than 2 consecutive times.
 After 2 in a row, the next posed microsegment must use a different pose (or null).
 
 ================================================================================
+PROSODY — TTS-AWARE PUNCTUATION:
+================================================================================
+Write punctuation to guide TTS delivery at generation time.
+Every microsegment's text must encode its intended rhythm and stress
+through punctuation — do not rely on post-processing.
+
+INTENT-BASED RULES:
+
+  hook / payoff:
+    - Keep sentences short and punchy — one beat, one idea.
+    - Use ellipses (...) to insert a dramatic pause before a reveal word or phrase.
+    - Capitalize the single most important word in the microsegment for stress.
+    - Example: "Nobody saw it coming... NOBODY."
+
+  reveal:
+    - Use an em-dash (—) immediately before the key truth or punchline.
+    - The em-dash signals a beat, then the hard landing.
+    - Example: "That's not a bug — that's how it was DESIGNED."
+
+  conflict:
+    - Use an em-dash mid-sentence to create weight and split the tension.
+    - The two halves should feel like a contradiction or an irony.
+    - Example: "The system works — but not for you."
+
+  escalation:
+    - No softening. Keep lines declarative and fast-moving.
+    - No trailing ellipses, no em-dashes — momentum only.
+    - Sentences should drive forward without punctuation tricks.
+
+  setup / resolution:
+    - Neutral punctuation. No special treatment.
+    - Standard periods, commas where natural. No stress capitalization.
+
+POSE-BASED RULES (applied on top of intent rules):
+
+  "emphasis" pose:
+    - Capitalize the stressed word or phrase that carries the emotional weight.
+    - Example: "This is the part everyone gets WRONG."
+
+  "asking" pose:
+    - Always end the microsegment with a question mark (?).
+    - If the sentence flows better with a micro-pause before the question pivot,
+      add a lead comma.
+    - Example: "And the whole time, nobody asked — why is this ALLOWED?"
+    - Example: "So who, exactly, was supposed to stop this?"
+
+  "authority" pose:
+    - Hard declarative only. Period at the end. No exceptions.
+    - No ellipses, no em-dashes, no capitalized stress words.
+    - The sentence itself carries the authority — punctuation must not perform it.
+    - Example: "The policy was changed three times in one year."
+
+CONFLICT RESOLUTION — when pose and intent rules clash:
+  - "authority" pose overrides intent-level ellipses and em-dashes.
+  - "asking" pose overrides intent-level capitalization (question mark takes priority).
+  - "emphasis" pose capitalization stacks on top of intent rules — both apply.
+
+================================================================================
 REQUIREMENTS:
 ================================================================================
 - 8-10 segments total

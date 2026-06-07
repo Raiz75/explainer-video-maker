@@ -34,7 +34,7 @@ TITLE RULES:
 DESCRIPTION RULES:
 - First 2-3 lines (above the fold): hook the viewer — what they'll learn, why it matters
 - Then a blank line
-- Body: 3-5 short paragraphs expanding on the key ideas covered in the video
+- Body: 2-3 short paragraphs expanding on the key ideas covered in the video
 - Then a blank line
 - End with a call to action: Like, subscribe, comment prompt — keep it natural, not salesy
 - Total length: 150-300 words
