@@ -73,6 +73,10 @@ POSE_FILES = {
 # Cache loaded+resized character images so we don't re-open on every microsegment
 _char_cache: dict = {}
 
+# ── Subtitle config ─────────────────────────────────────────────────
+SUBTITLE_FONT_SIZE = 42
+SUBTITLE_MARGIN    = 40
+
 
 # ── Character overlay helper ───────────────────────────────────────────────────
 def _get_char_image(pose: str):
@@ -107,6 +111,57 @@ def _composite_char(bg_arr: "np.ndarray", pose: str) -> "np.ndarray":
     y    = TARGET_H - char.height - CHAR_MARGIN_Y
     bg.paste(char, (x, y), mask=char.split()[3])   # alpha mask
     return np.array(bg)
+
+
+# ── Subtitle helper ───────────────────────────────────────────────────
+def _get_font(size):
+    from PIL import ImageFont
+    for p in ["arial.ttf", "C:\\Windows\\Fonts\\Arial.ttf",
+              "C:\\Windows\\Fonts\\segoeui.ttf", "C:\\Windows\\Fonts\\Calibri.ttf"]:
+        if os.path.isfile(p):
+            try:
+                return ImageFont.truetype(p, size)
+            except (IOError, OSError):
+                pass
+    return ImageFont.load_default()
+
+
+def _wrap_text(draw, text, font, max_width):
+    words = text.split()
+    if not words:
+        return [""]
+    lines = []
+    current = words[0]
+    for word in words[1:]:
+        test = current + " " + word
+        if draw.textlength(test, font=font) <= max_width:
+            current = test
+        else:
+            lines.append(current)
+            current = word
+    lines.append(current)
+    return lines
+
+
+def _add_subtitles_to_frame(arr, text):
+    from PIL import Image, ImageDraw
+    import numpy as np
+    img_pil = Image.fromarray(arr)
+    font   = _get_font(SUBTITLE_FONT_SIZE)
+    draw   = ImageDraw.Draw(img_pil)
+
+    max_w  = TARGET_W - SUBTITLE_MARGIN * 2
+    lines  = _wrap_text(draw, text, font, max_w)
+    line_h = int(SUBTITLE_FONT_SIZE * 1.3)
+    ty     = TARGET_H - len(lines) * line_h - SUBTITLE_MARGIN
+
+    for i, line in enumerate(lines):
+        tw = draw.textlength(line, font=font)
+        tx = (TARGET_W - tw) // 2
+        draw.text((tx, ty + i * line_h), line, font=font,
+                  fill=(255, 255, 255), stroke_width=3, stroke_fill=(0, 0, 0))
+
+    return np.array(img_pil)
 
 
 def render_explainer_video(
@@ -195,12 +250,13 @@ def render_explainer_video(
 
         audio_clips.append(audio_seg)
 
-        # Composite: background image + character pose overlay
+        # Composite: background image + character pose overlay + subtitles
         img = Image.open(img_path).convert("RGB")
         img = _fit_to_canvas(img, TARGET_W, TARGET_H)
         arr = np.array(img)
         if pose:
             arr = _composite_char(arr, pose)   # paste mascot bottom-right; skipped when pose is null
+        arr = _add_subtitles_to_frame(arr, text)
 
         clip = ImageClip(arr).set_duration(duration_s)
         video_clips.append(clip)
