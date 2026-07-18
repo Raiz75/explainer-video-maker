@@ -3,19 +3,18 @@
 # Run via run_explainer-video-maker.vbs
 
 import tkinter as tk
-from tkinter import messagebox, filedialog
+from tkinter import messagebox
 import threading
 import os
 import json
 
 # ── Paths ──────────────────────────────────────────────────────────────────────
 SCRIPT_DIR    = os.path.dirname(os.path.abspath(__file__))
-OUTPUT_FOLDER = os.path.join(SCRIPT_DIR, "output")
-IMAGES_FOLDER = os.path.join(SCRIPT_DIR, "images")
+OUTPUT_FOLDER    = os.path.join(SCRIPT_DIR, "output")
+ASSETS_IMAGES    = os.path.join(SCRIPT_DIR, "assets", "images")
 KOKORO_MODEL  = os.path.join(SCRIPT_DIR, "kokoro-v1.0.onnx")
 KOKORO_VOICE  = os.path.join(SCRIPT_DIR, "voices-v1.0.bin")
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
-os.makedirs(IMAGES_FOLDER, exist_ok=True)
 
 # ── Palette ────────────────────────────────────────────────────────────────────
 BG       = "#1a1a2e"
@@ -66,7 +65,6 @@ class ExplainerApp(tk.Tk):
         self.minsize(740, 500)
         self.configure(bg=BG)
         self._running = False
-        self._image_slots = []
         self._build_ui()
 
     def _build_ui(self):
@@ -136,64 +134,28 @@ class ExplainerApp(tk.Tk):
         tk.Label(f, text="LONG-FORM EXPLAINER VIDEO MAKER",
                  bg=BG, fg=ACCENT,
                  font=("Consolas", 15, "bold")).pack(pady=(18, 2))
-        tk.Label(f, text="AI Script  •  Equal Segments  •  Kokoro TTS  •  YouTube MP4  •  Local",
+        tk.Label(f, text="AI Script  •  Kokoro TTS  •  1080×1920 MP4  •  Fully Local",
                  bg=BG, fg=FG_MUTED,
-                 font=("Consolas", 9)).pack(pady=(0, 12))
+                 font=("Consolas", 9)).pack(pady=(0, 18))
 
-        # ── Copy Prompt buttons ────────────────────────────────────────────────
-        btn_row = tk.Frame(f, bg=BG)
-        btn_row.pack(fill="x", padx=24, pady=(0, 12))
+        # ══════════════════════════════════════════════════════════════════════
+        # PHASE 1 — Transcript & Script
+        # ══════════════════════════════════════════════════════════════════════
+        PHASE_FG = "#e94560"
+        tk.Label(f, text="▸ PHASE 1 — Transcript & Script",
+                 bg=BG, fg=PHASE_FG,
+                 font=("Consolas", 11, "bold"), anchor="w"
+                 ).pack(fill="x", padx=24, pady=(0, 4))
+        tk.Label(f, text="  1. Paste a reference transcript  →  2. Copy Prompt 1 to AI  →  3. Paste AI's JSON below",
+                 bg=BG, fg=FG_MUTED,
+                 font=("Consolas", 8), anchor="w"
+                 ).pack(fill="x", padx=24, pady=(0, 8))
 
-        self._copy_btn1 = tk.Button(
-            btn_row, text="📋  COPY PROMPT 1  (Script)",
-            bg=BORDER, fg="#a8d8ea",
-            font=("Consolas", 10, "bold"),
-            relief="flat", cursor="hand2",
-            activebackground="#1a472a", activeforeground=FG_GREEN,
-            command=self._copy_prompt1)
-        self._copy_btn1.pack(side="left", fill="x", expand=True, ipady=7, padx=(0, 6))
-
-        self._copy_btn2 = tk.Button(
-            btn_row, text="📋  COPY PROMPT 2  (Images)",
-            bg=BORDER, fg="#a8d8ea",
-            font=("Consolas", 10, "bold"),
-            relief="flat", cursor="hand2",
-            activebackground="#1a472a", activeforeground=FG_GREEN,
-            command=self._copy_prompt2)
-        self._copy_btn2.pack(side="left", fill="x", expand=True, ipady=7)
-
-        self._copy_btn3 = tk.Button(
-            f, text="📋  COPY PROMPT 3  (Title, Description & Tags)",
-            bg=BORDER, fg="#f0c87a",
-            font=("Consolas", 10, "bold"),
-            relief="flat", cursor="hand2",
-            activebackground="#1a472a", activeforeground=FG_GREEN,
-            command=self._copy_prompt3)
-        self._copy_btn3.pack(fill="x", padx=24, ipady=7, pady=(0, 12))
-
-        # ── Video Details (Prompt 3 JSON reply) ───────────────────────────────
-        lf_d = tk.LabelFrame(f, text=" Video Details  (paste JSON reply from Prompt 3) ",
-                             bg=SURFACE, fg="#f0c87a", bd=1, relief="flat",
-                             font=("Consolas", 9))
-        lf_d.pack(fill="x", padx=24, pady=(0, 10))
-
-        self._details_box = tk.Text(lf_d, bg=SURFACE2, fg="#f0c87a",
-                                    insertbackground=ACCENT,
-                                    font=("Consolas", 10),
-                                    height=6, relief="flat", bd=8, wrap="word")
-        self._details_box.pack(fill="x", padx=10, pady=(10, 4))
-        tk.Label(lf_d,
-                 text='Paste the {"title":…,"description":…,"tags":[…]} JSON here. '
-                      'Title becomes the filename; full JSON saved as .txt alongside the MP4.',
-                 bg=SURFACE, fg=FG_MUTED,
-                 font=("Consolas", 7), wraplength=660, justify="left"
-                 ).pack(anchor="w", padx=12, pady=(0, 8))
-
-        # ── Transcript ────────────────────────────────────────────────────────
-        lf_t = tk.LabelFrame(f, text=" Reference Transcript (paste from famous video) ",
+        # ── Step 1: Reference Transcript ────────────────────────────────────
+        lf_t = tk.LabelFrame(f, text=" Step 1 — Reference Transcript (paste from famous video) ",
                              bg=SURFACE, fg="#aaa", bd=1, relief="flat",
                              font=("Consolas", 9))
-        lf_t.pack(fill="x", padx=24, pady=(0, 10))
+        lf_t.pack(fill="x", padx=24, pady=(0, 6))
 
         self._transcript_box = tk.Text(lf_t, bg=SURFACE2, fg="#d4a8d4",
                                        insertbackground=ACCENT,
@@ -201,12 +163,22 @@ class ExplainerApp(tk.Tk):
                                        height=7, relief="flat", bd=8, wrap="word")
         self._transcript_box.pack(fill="x", padx=10, pady=(10, 4))
         tk.Label(lf_t,
-                 text="Paste the transcript here. Prompt 1 will use it as the flow reference.",
+                 text="Paste the transcript of a famous video here. Prompt 1 will use it as the flow reference.",
                  bg=SURFACE, fg=FG_MUTED,
                  font=("Consolas", 7)).pack(anchor="w", padx=12, pady=(0, 8))
 
-        # ── Script JSON ────────────────────────────────────────────────────────
-        lf_s = tk.LabelFrame(f, text=" Script Segments (JSON) ",
+        # ── Step 2: Copy Prompt 1 ───────────────────────────────────────────
+        self._copy_btn1 = tk.Button(
+            f, text="📋  Step 2 — COPY PROMPT 1 → AI  (Generates script JSON)",
+            bg=BORDER, fg="#a8d8ea",
+            font=("Consolas", 10, "bold"),
+            relief="flat", cursor="hand2",
+            activebackground="#1a472a", activeforeground=FG_GREEN,
+            command=self._copy_prompt1)
+        self._copy_btn1.pack(fill="x", padx=24, ipady=7, pady=(0, 6))
+
+        # ── Step 3: Script Segments JSON ────────────────────────────────────
+        lf_s = tk.LabelFrame(f, text=" Step 3 — Script Segments JSON (paste AI output here) ",
                              bg=SURFACE, fg="#aaa", bd=1, relief="flat",
                              font=("Consolas", 9))
         lf_s.pack(fill="x", padx=24, pady=(0, 10))
@@ -227,40 +199,112 @@ class ExplainerApp(tk.Tk):
         tk.Label(lf_s, text=HINT_JSON, bg=SURFACE, fg=FG_MUTED,
                  font=("Consolas", 7), justify="left").pack(anchor="w", padx=12, pady=(0, 8))
 
-        # ── Images panel ───────────────────────────────────────────────────────
-        lf_i = tk.LabelFrame(f, text=" Images — Content frames only (thumbnail generated separately) ",
+        # ══════════════════════════════════════════════════════════════════════
+        # PHASE 2 — Image Prompts & Selection
+        # ══════════════════════════════════════════════════════════════════════
+        tk.Label(f, text="▸ PHASE 2 — Image Prompts & Selection",
+                 bg=BG, fg=PHASE_FG,
+                 font=("Consolas", 11, "bold"), anchor="w"
+                 ).pack(fill="x", padx=24, pady=(16, 4))
+        tk.Label(f, text="  4. Copy Prompt 2 to AI  →  5. Generate & download images  →  6. Place in assets/images/ folder",
+                 bg=BG, fg=FG_MUTED,
+                 font=("Consolas", 8), anchor="w"
+                 ).pack(fill="x", padx=24, pady=(0, 8))
+
+        # ── Step 4: Copy Prompt 2 ───────────────────────────────────────────
+        self._copy_btn2 = tk.Button(
+            f, text="📋  Step 4 — COPY PROMPT 2 → AI  (Generates image prompts)",
+            bg=BORDER, fg="#a8d8ea",
+            font=("Consolas", 10, "bold"),
+            relief="flat", cursor="hand2",
+            activebackground="#1a472a", activeforeground=FG_GREEN,
+            command=self._copy_prompt2)
+        self._copy_btn2.pack(fill="x", padx=24, ipady=7, pady=(0, 6))
+
+        # ── Steps 5-6: Images — auto-detected ───────────────────────────────
+        lf_i = tk.LabelFrame(f, text=" Steps 5-6 — Images (auto-detected from assets/images/) ",
                              bg=SURFACE, fg="#aaa", bd=1, relief="flat",
                              font=("Consolas", 9))
         lf_i.pack(fill="x", padx=24, pady=(0, 10))
 
-        self._img_canvas = tk.Canvas(lf_i, bg=SURFACE, height=160, highlightthickness=0)
-        self._img_scrollbar = ttk.Scrollbar(lf_i, orient="vertical",
-                                            command=self._img_canvas.yview)
-        self._img_canvas.configure(yscrollcommand=self._img_scrollbar.set)
-        self._img_scrollbar.pack(side="right", fill="y", pady=6)
-        self._img_canvas.pack(side="left", fill="both", expand=True, padx=(10, 0), pady=6)
+        scan_row = tk.Frame(lf_i, bg=SURFACE)
+        scan_row.pack(fill="x", padx=10, pady=(10, 4))
 
-        self._img_inner = tk.Frame(self._img_canvas, bg=SURFACE)
-        self._img_canvas_win = self._img_canvas.create_window(
-            (0, 0), window=self._img_inner, anchor="nw")
-        self._img_inner.bind("<Configure>", self._on_inner_configure)
-        self._img_canvas.bind("<Configure>", self._on_img_canvas_configure)
+        self._scan_btn = tk.Button(scan_row, text="🔍  SCAN IMAGES",
+                                   bg=SURFACE2, fg=FG_GREEN,
+                                   font=("Consolas", 9, "bold"),
+                                   relief="flat", cursor="hand2",
+                                   activebackground=BORDER, activeforeground=FG_GREEN,
+                                   command=self._scan_and_display_images)
+        self._scan_btn.pack(side="left", ipady=4, ipadx=8)
 
-        add_row = tk.Frame(lf_i, bg=SURFACE)
-        add_row.pack(fill="x", padx=10, pady=(0, 8))
-        tk.Button(add_row, text="＋  ADD IMAGE SLOT",
-                  bg=SURFACE2, fg=FG_GREEN,
-                  font=("Consolas", 9, "bold"),
-                  relief="flat", cursor="hand2",
-                  activebackground=BORDER, activeforeground=FG_GREEN,
-                  command=self._add_image_slot).pack(side="left", padx=(0, 8), ipady=4, ipadx=8)
-        tk.Label(add_row,
-                 text="Add one slot per image beat (expect 30-80 total). Thumbnail NOT uploaded here.",
+        self._img_status_var = tk.StringVar(value="Not scanned yet.")
+        tk.Label(scan_row, textvariable=self._img_status_var,
                  bg=SURFACE, fg=FG_MUTED,
-                 font=("Consolas", 7)).pack(side="left")
+                 font=("Consolas", 8)).pack(side="left", padx=(10, 0))
 
-        for _ in range(5):
-            self._add_image_slot()
+        self._img_list_box = tk.Text(lf_i, bg=SURFACE2, fg="#a8d8a8",
+                                     font=("Consolas", 9),
+                                     height=6, relief="flat", bd=8, wrap="word",
+                                     state="disabled")
+        self._img_list_box.pack(fill="x", padx=10, pady=(0, 8))
+
+        tk.Label(lf_i,
+                 text="Name files starting with the image number: 1_desc.png, 2_name.jpg, 3_idea.webp (first character = slot number)",
+                 bg=SURFACE, fg=FG_MUTED,
+                 font=("Consolas", 7)).pack(anchor="w", padx=12, pady=(0, 8))
+
+        # ══════════════════════════════════════════════════════════════════════
+        # PHASE 3 — Title, Description & Tags
+        # ══════════════════════════════════════════════════════════════════════
+        tk.Label(f, text="▸ PHASE 3 — Title, Description & Tags",
+                 bg=BG, fg=PHASE_FG,
+                 font=("Consolas", 11, "bold"), anchor="w"
+                 ).pack(fill="x", padx=24, pady=(16, 4))
+        tk.Label(f, text="  7. Copy Prompt 3 to AI  →  8. Paste AI's JSON output below",
+                 bg=BG, fg=FG_MUTED,
+                 font=("Consolas", 8), anchor="w"
+                 ).pack(fill="x", padx=24, pady=(0, 8))
+
+        # ── Step 7: Copy Prompt 3 ───────────────────────────────────────────
+        self._copy_btn3 = tk.Button(
+            f, text="📋  Step 7 — COPY PROMPT 3 → AI  (Generates title, description & tags JSON)",
+            bg=BORDER, fg="#f0c87a",
+            font=("Consolas", 10, "bold"),
+            relief="flat", cursor="hand2",
+            activebackground="#1a472a", activeforeground=FG_GREEN,
+            command=self._copy_prompt3)
+        self._copy_btn3.pack(fill="x", padx=24, ipady=7, pady=(0, 6))
+
+        # ── Step 8: Video Details JSON ──────────────────────────────────────
+        lf_d = tk.LabelFrame(f, text=" Step 8 — Video Details JSON (paste AI output here) ",
+                             bg=SURFACE, fg="#f0c87a", bd=1, relief="flat",
+                             font=("Consolas", 9))
+        lf_d.pack(fill="x", padx=24, pady=(0, 10))
+
+        self._details_box = tk.Text(lf_d, bg=SURFACE2, fg="#f0c87a",
+                                    insertbackground=ACCENT,
+                                    font=("Consolas", 10),
+                                    height=6, relief="flat", bd=8, wrap="word")
+        self._details_box.pack(fill="x", padx=10, pady=(10, 4))
+        tk.Label(lf_d,
+                 text='Paste the {"title":…,"description":…,"tags":[…]} JSON here. '
+                      'Title becomes the filename; full JSON saved as .txt alongside the MP4.',
+                 bg=SURFACE, fg=FG_MUTED,
+                 font=("Consolas", 7), wraplength=660, justify="left"
+                 ).pack(anchor="w", padx=12, pady=(0, 8))
+
+        # ══════════════════════════════════════════════════════════════════════
+        # PHASE 4 — Render Video
+        # ══════════════════════════════════════════════════════════════════════
+        tk.Label(f, text="▸ PHASE 4 — Render Video",
+                 bg=BG, fg=PHASE_FG,
+                 font=("Consolas", 11, "bold"), anchor="w"
+                 ).pack(fill="x", padx=24, pady=(16, 4))
+        tk.Label(f, text="  9. Click GENERATE VIDEO below  →  MP4 + .txt saved in output/ folder",
+                 bg=BG, fg=FG_MUTED,
+                 font=("Consolas", 8), anchor="w"
+                 ).pack(fill="x", padx=24, pady=(0, 8))
 
         # ── Progress ───────────────────────────────────────────────────────────
         lf_p = tk.LabelFrame(f, text=" Progress ",
@@ -293,77 +337,93 @@ class ExplainerApp(tk.Tk):
                                 state="disabled", wrap="word")
         self._log_box.pack(fill="x", padx=10, pady=8)
 
-    # ── Canvas scroll helpers ──────────────────────────────────────────────────
-    def _on_inner_configure(self, _e):
-        self._img_canvas.configure(scrollregion=self._img_canvas.bbox("all"))
+        # Auto-scan images on startup
+        self._scan_and_display_images()
 
-    def _on_img_canvas_configure(self, e):
-        self._img_canvas.itemconfig(self._img_canvas_win, width=e.width)
+    # ── Image scanning ─────────────────────────────────────────────────────────
+    @staticmethod
+    def _parse_image_num(fname):
+        digits = ''
+        for ch in fname:
+            if ch.isdigit():
+                digits += ch
+            else:
+                break
+        return int(digits) if digits else None
 
-    # ── Image slot management ──────────────────────────────────────────────────
-    def _add_image_slot(self):
-        idx  = len(self._image_slots) + 1
-        slot = {"path": None}
+    def _build_image_map(self):
+        """Scan assets/images/ and return {image_number: file_path}."""
+        if not os.path.isdir(ASSETS_IMAGES):
+            return {}
+        image_map = {}
+        for fname in os.listdir(ASSETS_IMAGES):
+            if fname.startswith('.'):
+                continue
+            path = os.path.join(ASSETS_IMAGES, fname)
+            if not os.path.isfile(path):
+                continue
+            ext = os.path.splitext(fname)[1].lower()
+            if ext not in ('.png', '.jpg', '.jpeg', '.webp', '.bmp'):
+                continue
+            num = self._parse_image_num(fname)
+            if num is not None:
+                image_map[num] = path
+        return dict(sorted(image_map.items()))
 
-        row = tk.Frame(self._img_inner, bg=SURFACE)
-        row.pack(fill="x", padx=4, pady=3)
+    def _scan_and_display_images(self):
+        if not os.path.isdir(ASSETS_IMAGES):
+            self._img_status_var.set(f"❌ Folder not found: assets/images/")
+            self._img_list_box.config(state="normal")
+            self._img_list_box.delete("1.0", "end")
+            self._img_list_box.config(state="disabled")
+            return
 
-        num_lbl = tk.Label(row, text=f"[{idx:02d}]",
-                           bg=SURFACE, fg=FG_MUTED,
-                           font=("Consolas", 9, "bold"), width=10)
-        num_lbl.pack(side="left")
+        found = []
+        for fname in os.listdir(ASSETS_IMAGES):
+            if fname.startswith('.'):
+                continue
+            path = os.path.join(ASSETS_IMAGES, fname)
+            if not os.path.isfile(path):
+                continue
+            ext = os.path.splitext(fname)[1].lower()
+            if ext not in ('.png', '.jpg', '.jpeg', '.webp', '.bmp'):
+                continue
+            num = self._parse_image_num(fname)
+            if num is not None:
+                found.append((num, fname))
 
-        path_lbl = tk.Label(row, text="— no image selected —",
-                            bg=SURFACE2, fg=FG_MUTED,
-                            font=("Consolas", 9), anchor="w",
-                            relief="flat", padx=8)
-        path_lbl.pack(side="left", fill="x", expand=True, ipady=4)
+        found.sort(key=lambda x: x[0])
 
-        def browse(s=slot, lbl=path_lbl):
-            p = filedialog.askopenfilename(
-                title="Select Image",
-                filetypes=[("Image files", "*.png *.jpg *.jpeg *.webp *.bmp")])
-            if p:
-                s["path"] = p
-                lbl.config(text=os.path.basename(p), fg=FG_GREEN)
+        self._img_list_box.config(state="normal")
+        self._img_list_box.delete("1.0", "end")
+        if not found:
+            self._img_list_box.insert("end", "  No valid images found.\n")
+            self._img_list_box.insert("end", "  Place images in: assets/images/\n")
+            self._img_list_box.insert("end", "  Name files like: 1_desc.png, 2_name.jpg\n")
+            self._img_status_var.set("❌ No images detected.")
+        else:
+            for num, fname in found:
+                self._img_list_box.insert("end", f"  [{num:02d}] {fname}  ✅\n")
+            self._img_status_var.set(f"✅ {len(found)} image(s) loaded from assets/images/")
+        self._img_list_box.config(state="disabled")
 
-        def remove(r=row, s=slot):
-            r.destroy()
-            self._image_slots.remove(s)
-            self._renumber_slots()
-
-        tk.Button(row, text="📂", bg=BORDER, fg="#a8d8ea",
-                  font=("Consolas", 9), relief="flat", cursor="hand2",
-                  command=browse).pack(side="left", padx=(4, 2), ipady=3, ipadx=4)
-
-        tk.Button(row, text="✕", bg=SURFACE2, fg=ACCENT,
-                  font=("Consolas", 9), relief="flat", cursor="hand2",
-                  command=remove).pack(side="left", padx=(0, 4), ipady=3, ipadx=4)
-
-        slot["frame"]   = row
-        slot["num_lbl"] = num_lbl
-        slot["path_lbl"]= path_lbl
-        self._image_slots.append(slot)
-
-    def _renumber_slots(self):
-        for i, slot in enumerate(self._image_slots, 1):
-            slot["num_lbl"].config(text=f"[{i:02d}]", fg=FG_MUTED)
+    def _clear_image_display(self):
+        self._img_list_box.config(state="normal")
+        self._img_list_box.delete("1.0", "end")
+        self._img_list_box.config(state="disabled")
+        self._img_status_var.set("Not scanned yet.")
 
     # ── Clear all ──────────────────────────────────────────────────────────────
     def _clear_all(self):
         if self._running:
             return
         if not messagebox.askyesno("Clear All Data",
-                                   "Clear the transcript, script JSON, all image slots, and the log?"):
+                                   "Clear the transcript, script JSON, video details, and the log?"):
             return
         self._script_box.delete("1.0", "end")
         self._transcript_box.delete("1.0", "end")
         self._details_box.delete("1.0", "end")
-        for slot in self._image_slots:
-            slot["frame"].destroy()
-        self._image_slots.clear()
-        for _ in range(5):
-            self._add_image_slot()
+        self._clear_image_display()
         self._clear_log()
         self._set_progress(0)
         self._set_status("Ready.")
@@ -470,27 +530,21 @@ class ExplainerApp(tk.Tk):
                 seen.add(n)
                 all_image_nums.append(n)
 
-        image_map = {}
-        for i, slot in enumerate(self._image_slots, 1):
-            if slot["path"] is None:
-                messagebox.showwarning("Missing Image",
-                    f"Image slot [{i:02d}] has no file selected.")
-                return
-            image_map[i] = slot["path"]
+        self._scan_and_display_images()
+        image_map = self._build_image_map()
+        if not image_map:
+            messagebox.showerror("No Images",
+                "No images found in assets/images/.\n"
+                "Place your generated images there first.\n"
+                "Name files like: 1_desc.png, 2_name.jpg, 3_idea.webp")
+            return
 
         missing = sorted(set(all_image_nums) - set(image_map.keys()))
         if missing:
-            messagebox.showerror("Missing Image Slots",
-                f"Segments reference image(s) {missing} but those slots don't exist.\n"
-                f"You have {len(self._image_slots)} slot(s).")
+            messagebox.showerror("Missing Images",
+                f"Script references image number(s) {missing} but no matching files.\n"
+                f"Available images for slots: {sorted(image_map.keys())}")
             return
-
-        unused = sorted(set(image_map.keys()) - set(all_image_nums))
-        if unused:
-            if not messagebox.askyesno("Unused Slots",
-                f"Image slot(s) {unused} are loaded but not referenced.\n"
-                f"They will be ignored. Continue?"):
-                return
 
         self._running = True
         self._gen_btn.config(state="disabled")
@@ -532,7 +586,10 @@ class ExplainerApp(tk.Tk):
                     txt_path = os.path.splitext(out)[0] + ".txt"
                     try:
                         with open(txt_path, "w", encoding="utf-8") as fh:
-                            json.dump(details_json, fh, ensure_ascii=False, indent=2)
+                            fh.write(f"title:\n{details_json.get('title', '')}\n\n")
+                            fh.write(f"description:\n{details_json.get('description', '')}\n\n")
+                            tags = details_json.get('tags', [])
+                            fh.write(f"tags:\n{', '.join(tags)}\n")
                         self.after(0, lambda tp=txt_path: self._log(
                             f"📄 Details saved: output/{os.path.basename(tp)}"))
                     except Exception as te:

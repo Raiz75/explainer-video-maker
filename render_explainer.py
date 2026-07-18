@@ -8,7 +8,6 @@
 import os
 import sys
 import subprocess
-import tempfile
 from datetime import datetime
 
 # ── Suppress console windows for all subprocess calls on Windows ───────────────
@@ -131,7 +130,7 @@ def render_explainer_video(
     import numpy as np
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    tmp_dir   = tempfile.mkdtemp(prefix="explainer_")
+    tmp_dir   = output_folder
 
     # ── Step 1: Load Kokoro ────────────────────────────────────────────────────
     log_fn("Loading Kokoro model...")
@@ -264,8 +263,6 @@ def render_explainer_video(
 
     # ── Cleanup ────────────────────────────────────────────────────────────────
     try: os.remove(combined_mp3)
-    except: pass
-    try: os.rmdir(tmp_dir)
     except: pass
 
     log_fn(f"Total duration: {final_video.duration:.1f}s")

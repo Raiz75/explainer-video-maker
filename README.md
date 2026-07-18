@@ -6,17 +6,26 @@ A local Windows desktop tool that turns an AI-generated script + images into a f
 
 ---
 
-## How It Works
+## How It Works — 4-Phase Workflow
 
-1. Copy the **Master Prompt** from the app
-2. Paste it into any AI (ChatGPT, Claude, Gemini), fill in your topic
-3. The AI outputs:
-   - A **JSON array** of script segments → paste into the app
-   - **Plain text image prompts** → paste each into an image AI (Midjourney, DALL·E, etc.)
-4. Add your generated images into the app's image slots (in order)
-5. Click **GENERATE VIDEO**
+The app guides you through 4 sequential phases, top to bottom:
 
-The app runs Kokoro TTS on each segment, measures the exact audio duration, holds the matching image on screen for that duration, then concatenates everything into one MP4.
+### Phase 1: Transcript → Script
+1. **Paste a reference transcript** (from a famous video) into the Transcript box
+2. **Copy Prompt 1 → AI** — embeds your transcript into a master prompt; paste this into ChatGPT/Claude/Gemini
+3. **Paste the AI's JSON output** into the Script Segments box (array of segments with microsegments)
+
+### Phase 2: Image Prompts & Selection (Auto-Detected)
+4. **Copy Prompt 2 → AI** — generates image prompts for every microsegment
+5. **Generate images** using Midjourney / DALL·E / Stable Diffusion with those prompts
+6. **Place images** in `assets/images/` folder — name files starting with the image number: `1_desc.png`, `2_name.jpg`, `3_idea.webp` (first character = slot number). The app auto-detects them.
+
+### Phase 3: Title, Description & Tags
+7. **Copy Prompt 3 → AI** — generates YouTube SEO JSON (title, description, tags)
+8. **Paste the AI's JSON output** into the Video Details box
+
+### Phase 4: Render
+9. **Click GENERATE VIDEO** — Kokoro TTS produces narration for each microsegment, images display for exactly the audio duration, then everything concatenates into a 1080×1920 MP4. A `.txt` sidecar with your title/description/tags is saved alongside the video.
 
 ---
 
@@ -128,13 +137,22 @@ The number of JSON segments **must match** the number of image slots you fill in
 
 ---
 
-## Image Slots
+## Images — Auto-Detected
 
-- The app starts with 3 slots pre-loaded
-- Click **＋ ADD IMAGE SLOT** to add more
-- Click 📂 on any slot to browse for that image
-- Click ✕ to remove a slot (remaining slots auto-renumber)
-- Slot order = image number order — slot [01] = `"image": 1`, slot [02] = `"image": 2`, etc.
+Images are auto-detected from `assets/images/` at startup and when you click GENERATE VIDEO.
+
+**Naming rule:** The first character of the filename is the slot number.
+- `1_desc.png` → image slot 1
+- `2_name.jpg` → image slot 2
+- `3_idea.webp` → image slot 3
+
+Only the first character matters — the rest of the name is for your reference.
+
+**Steps:**
+1. Generate images using the prompts from Prompt 2
+2. Download them into `assets/images/`
+3. Name them `1_anything.png`, `2_anything.png`, etc.
+4. Click **SCAN IMAGES** to verify, or just GENERATE VIDEO (it scans automatically)
 
 Supported formats: `.png` `.jpg` `.jpeg` `.webp` `.bmp`
 

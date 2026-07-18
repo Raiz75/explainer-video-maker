@@ -6,8 +6,12 @@ kokoro-v1.0.onnx
 voices-v1.0.bin
 
 # Output and user media
-assets/*
-!assets/character/
+assets/character/*
+!assets/character/.gitkeep
+assets/images/*
+!assets/images/.gitkeep
+assets/video/*
+!assets/video/.gitkeep
 output/*
 content/*
 !output/.gitkeep
@@ -16,3 +20,5 @@ content/*
 *.wav
 *.mp3
 *.mp4
+
+
